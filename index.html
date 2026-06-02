@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embarques de Transporte — PETROSAR SA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --ps-bg:#f0f2f6;--ps-header-bg:#1e2d3e;--ps-header-bg2:#192638;
+  --ps-card:#fff;--ps-border:#e2e8f0;--ps-text:#1a202c;--ps-muted:#718096;
+  --ps-label:#4a5568;--ps-accent:#e8a020;--ps-accent2:#f05a28;--ps-accent-glow:#e8a02033;
+  --ps-green:#38a169;--ps-red:#e53e3e;--ps-blue:#3182ce;
+  --ps-font:'Segoe UI',system-ui,-apple-system,sans-serif;
+  --ps-shadow-sm:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --ps-shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+  --ps-radius-md:10px;--ps-radius-lg:14px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);font-size:14px;line-height:1.5;min-height:100vh}
+
+/* HEADER */
+.ps-header{background:linear-gradient(160deg,#253445 0%,var(--ps-header-bg2) 100%);padding:26px 32px 30px;position:relative;overflow:hidden}
+.ps-header::before{content:'';position:absolute;top:-60px;right:-60px;width:240px;height:240px;background:rgba(255,255,255,.03);border-radius:50%}
+.ps-header::after{content:'';position:absolute;bottom:-40px;left:30%;width:180px;height:180px;background:rgba(232,160,32,.06);border-radius:50%}
+.ps-header-top{display:flex;align-items:center;gap:14px;margin-bottom:6px;position:relative;z-index:1}
+.ps-logo img{width:40px;height:40px;object-fit:contain;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.ps-header-title{font-weight:700;font-size:26px;color:#fff;letter-spacing:-.3px}
+.ps-header-sub{font-size:13px;color:rgba(255,255,255,.55);margin-top:3px}
+
+/* MAIN */
+.ps-main{padding:24px 32px;max-width:1400px;margin:0 auto}
+
+/* FILTROS */
+.ps-filters{background:var(--ps-card);border:1px solid var(--ps-border);border-radius:var(--ps-radius-lg);padding:16px 20px;box-shadow:var(--ps-shadow-sm);margin-bottom:20px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+.ps-filter-group{flex:1;min-width:150px}
+.ps-label{display:block;font-size:11px;font-weight:600;color:var(--ps-label);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.ps-input,.ps-select{width:100%;background:#fff;border:1.5px solid var(--ps-border);border-radius:var(--ps-radius-md);padding:9px 14px;color:var(--ps-text);font-family:var(--ps-font);font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s}
+.ps-input:focus,.ps-select:focus{border-color:var(--ps-header-bg);box-shadow:0 0 0 3px rgba(26,39,68,.1)}
+.ps-btn{padding:9px 18px;border-radius:var(--ps-radius-md);border:1px solid var(--ps-border);background:var(--ps-card);color:var(--ps-text);font-family:var(--ps-font);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:8px;box-shadow:var(--ps-shadow-sm);white-space:nowrap}
+.ps-btn:hover{background:#f7fafc;box-shadow:var(--ps-shadow-md)}
+.ps-btn-accent{background:linear-gradient(135deg,var(--ps-accent),var(--ps-accent2));border:none;color:#fff;box-shadow:0 4px 12px var(--ps-accent-glow)}
+.ps-btn-accent:hover{opacity:.9}
+
+/* KPIs */
+.ps-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.ps-card{background:var(--ps-card);border:1px solid var(--ps-border);border-radius:var(--ps-radius-lg);padding:24px 20px;box-shadow:var(--ps-shadow-sm);transition:box-shadow .2s,transform .15s;text-align:center}
+.ps-card:hover{box-shadow:var(--ps-shadow-md);transform:translateY(-2px)}
+.ps-card-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px}
+.ps-icon-green{background:#48bb78}.ps-icon-red{background:#fc8181}.ps-icon-blue{background:#63b3ed}.ps-icon-orange{background:#f6ad55}.ps-icon-purple{background:#b794f4}
+.ps-card-label{font-size:11px;font-weight:600;color:var(--ps-muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px}
+.ps-card-value{font-weight:700;font-size:36px;color:var(--ps-text);line-height:1.1;margin-bottom:6px}
+.ps-card-sub{font-size:12px;color:var(--ps-muted)}
+
+/* TABS */
+.ps-tabs{display:flex;background:var(--ps-card);border:1px solid var(--ps-border);border-radius:var(--ps-radius-lg) var(--ps-radius-lg) 0 0;padding:0 12px;box-shadow:var(--ps-shadow-sm);overflow-x:auto}
+.ps-tab{padding:14px 22px;font-family:var(--ps-font);font-size:14px;font-weight:500;color:var(--ps-muted);cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;display:flex;align-items:center;gap:8px;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none}
+.ps-tab:hover{color:var(--ps-text)}
+.ps-tab.active{color:var(--ps-header-bg);border-bottom-color:var(--ps-accent);font-weight:600}
+
+/* CONTENT CARD */
+.ps-content-card{background:var(--ps-card);border:1px solid var(--ps-border);border-top:none;border-radius:0 0 var(--ps-radius-lg) var(--ps-radius-lg);padding:20px 24px;box-shadow:var(--ps-shadow-sm);margin-bottom:16px}
+.ps-pane{display:none}.ps-pane.active{display:block}
+
+/* TABLA */
+.ps-table-wrap{overflow-x:auto;border-radius:var(--ps-radius-md);border:1px solid var(--ps-border)}
+.ps-table{width:100%;border-collapse:collapse;font-size:13px}
+.ps-table th{text-align:left;padding:11px 16px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ps-muted);background:#f7fafc;border-bottom:1px solid var(--ps-border);white-space:nowrap;cursor:pointer;user-select:none}
+.ps-table th:hover{color:var(--ps-text)}
+.ps-table td{padding:11px 16px;border-bottom:1px solid var(--ps-border);color:var(--ps-text)}
+.ps-table tr:last-child td{border-bottom:none}
+.ps-table tbody tr:hover td{background:#f7fafc}
+.ps-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.ps-badge-ok{background:#c6f6d5;color:#276749}
+.ps-badge-danger{background:#fed7d7;color:#9b2c2c}
+.ps-bar-cell{display:flex;align-items:center;gap:8px}
+.ps-bar-track{flex:1;height:8px;background:#edf2f7;border-radius:6px;overflow:hidden;min-width:60px}
+.ps-bar-fill{height:100%;background:linear-gradient(90deg,var(--ps-accent),var(--ps-accent2));border-radius:6px}
+
+/* STATES */
+.ps-state{text-align:center;padding:60px 20px;color:var(--ps-muted)}
+.ps-state-icon{font-size:48px;margin-bottom:12px}
+.ps-loader{height:3px;background:linear-gradient(90deg,var(--ps-accent),var(--ps-accent2),var(--ps-accent));background-size:200% 100%;animation:sh 1s linear infinite;border-radius:3px;margin-bottom:20px}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.ps-err{background:#fed7d7;color:#9b2c2c;border-radius:var(--ps-radius-md);padding:14px 18px;font-weight:600;margin-bottom:16px}
+
+@media(max-width:768px){
+  .ps-header{padding:20px}.ps-main{padding:16px}
+  .ps-kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .ps-filter-group{min-width:120px}
+}
+</style>
+</head>
+<body>
+
+<header class="ps-header">
+  <div class="ps-header-top">
+    <div class="ps-logo">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjE4IiBmaWxsPSIjMWUyZDNlIi8+PHRleHQgeD0iNTAiIHk9IjYyIiBmb250LWZhbWlseT0iU2Vnb2UgVUksc2Fucy1zZXJpZiIgZm9udC1zaXplPSIzNCIgZm9udC13ZWlnaHQ9IjkwMCIgZmlsbD0iI2U4YTAyMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UFM8L3RleHQ+PC9zdmc+" alt="PETROSAR SA">
+    </div>
+    <div>
+      <div class="ps-header-title">Embarques de Transporte</div>
+      <div class="ps-header-sub">Registro de embarques por recorrido · PETROSAR SA</div>
+    </div>
+  </div>
+</header>
+
+<main class="ps-main">
+
+  <!-- FILTROS -->
+  <div class="ps-filters">
+    <div class="ps-filter-group">
+      <label class="ps-label">Desde</label>
+      <input type="date" class="ps-input" id="f-desde">
+    </div>
+    <div class="ps-filter-group">
+      <label class="ps-label">Hasta</label>
+      <input type="date" class="ps-input" id="f-hasta">
+    </div>
+    <div class="ps-filter-group">
+      <label class="ps-label">Recorrido</label>
+      <select class="ps-select" id="f-recorrido"><option value="">Todos</option></select>
+    </div>
+    <div class="ps-filter-group">
+      <label class="ps-label">Empresa</label>
+      <select class="ps-select" id="f-empresa"><option value="">Todas</option></select>
+    </div>
+    <button class="ps-btn" onclick="loadData()">🔄 Actualizar</button>
+    <button class="ps-btn ps-btn-accent" onclick="exportXlsx()">📥 Exportar Excel</button>
+  </div>
+
+  <div id="msg"></div>
+
+  <!-- KPIs -->
+  <div class="ps-kpi-grid" id="kpis"></div>
+
+  <!-- TABS -->
+  <div class="ps-tabs">
+    <button class="ps-tab active" data-pane="resumen">📊 Por recorrido</button>
+    <button class="ps-tab" data-pane="empresa">🏢 Por empresa</button>
+    <button class="ps-tab" data-pane="ausentes">⚠️ Ausentes</button>
+    <button class="ps-tab" data-pane="detalle">📋 Detalle</button>
+  </div>
+
+  <div class="ps-content-card">
+    <div class="ps-pane active" id="pane-resumen"></div>
+    <div class="ps-pane" id="pane-empresa"></div>
+    <div class="ps-pane" id="pane-ausentes"></div>
+    <div class="ps-pane" id="pane-detalle"></div>
+  </div>
+
+</main>
+
+<script>
+const SB_URL='https://acvkgxwkoprftxfutnbq.supabase.co';
+const SB_KEY='sb_publishable_oxT-JSRhioj00iI_iy_Sgg_xnyBG8RO';
+const SB_TABLE='transporte_embarques';
+
+let RAW=[]; // todos los registros sin filtrar (para poblar selects)
+let DATA=[]; // registros filtrados visibles
+
+// ── Tabs ──
+document.querySelectorAll('.ps-tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.ps-tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.ps-pane').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('pane-'+t.dataset.pane).classList.add('active');
+  };
+});
+
+function msg(html,err){document.getElementById('msg').innerHTML=html?`<div class="${err?'ps-err':''}">${html}</div>`:''}
+
+async function sbFetch(query){
+  const r=await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?${query}`,{
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+  });
+  if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' — '+t)}
+  return r.json();
+}
+
+async function loadData(){
+  msg('<div class="ps-loader"></div>');
+  try{
+    // Si no hay registros aún en RAW, traer todo una vez para poblar selects
+    if(!RAW.length){
+      RAW=await sbFetch('select=*&order=fecha.desc&limit=10000');
+      populateSelects();
+    }
+    // Construir filtro server-side
+    const params=['select=*','order=fecha.desc,recorrido.asc,parada.asc','limit=10000'];
+    const d=document.getElementById('f-desde').value;
+    const h=document.getElementById('f-hasta').value;
+    const rec=document.getElementById('f-recorrido').value;
+    const emp=document.getElementById('f-empresa').value;
+    if(d)params.push('fecha=gte.'+d);
+    if(h)params.push('fecha=lte.'+h);
+    if(rec)params.push('recorrido=eq.'+encodeURIComponent(rec));
+    if(emp)params.push('empresa=eq.'+encodeURIComponent(emp));
+    DATA=await sbFetch(params.join('&'));
+    msg('');
+    render();
+  }catch(e){
+    msg('⚠️ No se pudieron cargar los datos. '+e.message,true);
+    document.getElementById('kpis').innerHTML='';
+  }
+}
+
+function populateSelects(){
+  const recs=[...new Set(RAW.map(r=>r.recorrido).filter(Boolean))].sort();
+  const emps=[...new Set(RAW.map(r=>r.empresa).filter(Boolean))].sort();
+  const sr=document.getElementById('f-recorrido');
+  const se=document.getElementById('f-empresa');
+  recs.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sr.appendChild(o)});
+  emps.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;se.appendChild(o)});
+}
+
+function render(){
+  renderKpis();
+  renderResumen();
+  renderEmpresa();
+  renderAusentes();
+  renderDetalle();
+}
+
+function renderKpis(){
+  const tot=DATA.length;
+  const conf=DATA.filter(r=>r.estado==='CONFIRMADO').length;
+  const aus=tot-conf;
+  const pct=tot?Math.round(conf/tot*100):0;
+  const recs=new Set(DATA.map(r=>r.recorrido)).size;
+  document.getElementById('kpis').innerHTML=`
+    <div class="ps-card"><div class="ps-card-icon ps-icon-blue">🚌</div><div class="ps-card-label">Recorridos</div><div class="ps-card-value">${recs}</div><div class="ps-card-sub">con embarques</div></div>
+    <div class="ps-card"><div class="ps-card-icon ps-icon-purple">👥</div><div class="ps-card-label">Pasajeros</div><div class="ps-card-value">${tot}</div><div class="ps-card-sub">total registrados</div></div>
+    <div class="ps-card"><div class="ps-card-icon ps-icon-green">✅</div><div class="ps-card-label">Confirmados</div><div class="ps-card-value">${conf}</div><div class="ps-card-sub">${pct}% del total</div></div>
+    <div class="ps-card"><div class="ps-card-icon ps-icon-red">⚠️</div><div class="ps-card-label">Ausentes</div><div class="ps-card-value">${aus}</div><div class="ps-card-sub">no embarcaron</div></div>`;
+}
+
+function emptyState(icon,txt){return `<div class="ps-state"><div class="ps-state-icon">${icon}</div>${txt}</div>`}
+
+function renderResumen(){
+  const g={};
+  DATA.forEach(r=>{
+    const k=r.fecha+'||'+r.recorrido;
+    if(!g[k])g[k]={fecha:r.fecha,recorrido:r.recorrido,tot:0,conf:0};
+    g[k].tot++;if(r.estado==='CONFIRMADO')g[k].conf++;
+  });
+  const rows=Object.values(g).sort((a,b)=>b.fecha.localeCompare(a.fecha)||a.recorrido.localeCompare(b.recorrido));
+  if(!rows.length){document.getElementById('pane-resumen').innerHTML=emptyState('📭','No hay registros para los filtros seleccionados.');return}
+  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Pasajeros</th><th>Confirmados</th><th>Ausentes</th><th style="width:160px">% Confirmado</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const pct=r.tot?Math.round(r.conf/r.tot*100):0;
+    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td><b>${esc(r.recorrido)}</b></td><td>${r.tot}</td><td>${r.conf}</td><td>${r.tot-r.conf}</td><td><div class="ps-bar-cell"><div class="ps-bar-track"><div class="ps-bar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div></td></tr>`;
+  });
+  h+='</tbody></table></div>';
+  document.getElementById('pane-resumen').innerHTML=h;
+}
+
+function renderEmpresa(){
+  const g={};
+  DATA.forEach(r=>{
+    const e=r.empresa||'(Sin empresa)';
+    if(!g[e])g[e]={empresa:e,tot:0,conf:0};
+    g[e].tot++;if(r.estado==='CONFIRMADO')g[e].conf++;
+  });
+  const rows=Object.values(g).sort((a,b)=>b.tot-a.tot);
+  if(!rows.length){document.getElementById('pane-empresa').innerHTML=emptyState('📭','No hay registros.');return}
+  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Empresa</th><th>Pasajeros</th><th>Confirmados</th><th>Ausentes</th><th style="width:160px">% Confirmado</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const pct=r.tot?Math.round(r.conf/r.tot*100):0;
+    h+=`<tr><td><b>🏢 ${esc(r.empresa)}</b></td><td>${r.tot}</td><td>${r.conf}</td><td>${r.tot-r.conf}</td><td><div class="ps-bar-cell"><div class="ps-bar-track"><div class="ps-bar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div></td></tr>`;
+  });
+  h+='</tbody></table></div>';
+  document.getElementById('pane-empresa').innerHTML=h;
+}
+
+function renderAusentes(){
+  const rows=DATA.filter(r=>r.estado==='AUSENTE');
+  if(!rows.length){document.getElementById('pane-ausentes').innerHTML=emptyState('🎉','No hay ausentes en los filtros seleccionados.');return}
+  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td></tr>`;
+  });
+  h+='</tbody></table></div>';
+  document.getElementById('pane-ausentes').innerHTML=h;
+}
+
+function renderDetalle(){
+  if(!DATA.length){document.getElementById('pane-detalle').innerHTML=emptyState('📭','No hay registros.');return}
+  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th><th>Estado</th><th>Hora</th></tr></thead><tbody>`;
+  DATA.forEach(r=>{
+    const badge=r.estado==='CONFIRMADO'?'<span class="ps-badge ps-badge-ok">CONFIRMADO</span>':'<span class="ps-badge ps-badge-danger">AUSENTE</span>';
+    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td><td>${badge}</td><td>${esc(r.hora_embarque||'')}</td></tr>`;
+  });
+  h+='</tbody></table></div>';
+  document.getElementById('pane-detalle').innerHTML=h;
+}
+
+function exportXlsx(){
+  if(!DATA.length){alert('No hay datos para exportar.');return}
+  const aoa=[['Fecha','Recorrido','Parada','Empresa','Pasajero','DNI/Legajo','Estado','Hora Embarque']];
+  DATA.forEach(r=>aoa.push([r.fecha,r.recorrido,r.parada||'',r.empresa||'',r.nombre_pasajero||'',r.dni||'',r.estado||'',r.hora_embarque||'']));
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:12},{wch:26},{wch:12},{wch:24},{wch:30},{wch:16},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,'Embarques');
+  XLSX.writeFile(wb,'Embarques_PETROSAR_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function fmtFecha(f){if(!f)return '';const p=String(f).slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:f}
+
+// Carga inicial
+loadData();
+</script>
+</body>
+</html>
