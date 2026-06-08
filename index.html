@@ -125,8 +125,21 @@ body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);fon
       <label class="ps-label">Empresa</label>
       <select class="ps-select" id="f-empresa"><option value="">Todas</option></select>
     </div>
+    <div class="ps-filter-group">
+      <label class="ps-label">Estado</label>
+      <select class="ps-select" id="f-estado">
+        <option value="">Todos</option>
+        <option value="CONFIRMADO">Solo logueados</option>
+        <option value="AUSENTE">Solo ausentes</option>
+      </select>
+    </div>
+    <div class="ps-filter-group">
+      <label class="ps-label">Buscar apellido / DNI</label>
+      <input type="text" class="ps-input" id="f-busca" placeholder="Ej: Espinosa" oninput="render()">
+    </div>
     <button class="ps-btn" onclick="loadData()">🔄 Actualizar</button>
     <button class="ps-btn ps-btn-accent" onclick="exportXlsx()">📥 Exportar Excel</button>
+    <button class="ps-btn" id="btn-admin" onclick="toggleAdmin()">🔒 Modo edición</button>
   </div>
 
   <div id="msg"></div>
@@ -157,7 +170,10 @@ const SB_KEY='sb_publishable_oxT-JSRhioj00iI_iy_Sgg_xnyBG8RO';
 const SB_TABLE='transporte_embarques';
 
 let RAW=[]; // todos los registros sin filtrar (para poblar selects)
-let DATA=[]; // registros filtrados visibles
+let DATA_ALL=[]; // lo que vino de Supabase con filtros server-side
+let DATA=[]; // registros visibles tras búsqueda por apellido/DNI
+let ADMIN=false; // modo edición activado con clave
+const ADMIN_PASS='Petrosar103!';
 
 // ── Tabs ──
 document.querySelectorAll('.ps-tab').forEach(t=>{
@@ -193,11 +209,13 @@ async function loadData(){
     const h=document.getElementById('f-hasta').value;
     const rec=document.getElementById('f-recorrido').value;
     const emp=document.getElementById('f-empresa').value;
+    const est=document.getElementById('f-estado').value;
     if(d)params.push('fecha=gte.'+d);
     if(h)params.push('fecha=lte.'+h);
     if(rec)params.push('recorrido=eq.'+encodeURIComponent(rec));
     if(emp)params.push('empresa=eq.'+encodeURIComponent(emp));
-    DATA=await sbFetch(params.join('&'));
+    if(est)params.push('estado=eq.'+encodeURIComponent(est));
+    DATA_ALL=await sbFetch(params.join('&'));
     msg('');
     render();
   }catch(e){
@@ -216,6 +234,18 @@ function populateSelects(){
 }
 
 function render(){
+  // Aplica búsqueda por apellido/DNI sobre lo cargado
+  const q=document.getElementById('f-busca').value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const qd=document.getElementById('f-busca').value.replace(/\D/g,'');
+  if(q.length<2&&qd.length<3){
+    DATA=DATA_ALL.slice();
+  }else{
+    DATA=DATA_ALL.filter(r=>{
+      const nm=String(r.nombre_pasajero||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const dn=String(r.dni||'').replace(/\D/g,'');
+      return (q.length>=2&&nm.includes(q))||(qd.length>=3&&dn.includes(qd));
+    });
+  }
   renderKpis();
   renderResumen();
   renderEmpresa();
@@ -277,9 +307,11 @@ function renderEmpresa(){
 function renderAusentes(){
   const rows=DATA.filter(r=>r.estado==='AUSENTE');
   if(!rows.length){document.getElementById('pane-ausentes').innerHTML=emptyState('🎉','No hay ausentes en los filtros seleccionados.');return}
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th></tr></thead><tbody>`;
+  const accCol=ADMIN?'<th>Acción</th>':'';
+  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th>${accCol}</tr></thead><tbody>`;
   rows.forEach(r=>{
-    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td></tr>`;
+    const acc=ADMIN?`<td><button class="ps-btn ps-btn-accent" style="padding:6px 12px" onclick="marcarEmbarcado(${r.id})">✅ Marcar embarcado</button></td>`:'';
+    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td>${acc}</tr>`;
   });
   h+='</tbody></table></div>';
   document.getElementById('pane-ausentes').innerHTML=h;
@@ -287,13 +319,81 @@ function renderAusentes(){
 
 function renderDetalle(){
   if(!DATA.length){document.getElementById('pane-detalle').innerHTML=emptyState('📭','No hay registros.');return}
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th><th>Estado</th><th>Hora</th></tr></thead><tbody>`;
+  const accCol=ADMIN?'<th>Acción</th>':'';
+  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th><th>Estado</th><th>Hora</th>${accCol}</tr></thead><tbody>`;
   DATA.forEach(r=>{
     const badge=r.estado==='CONFIRMADO'?'<span class="ps-badge ps-badge-ok">CONFIRMADO</span>':'<span class="ps-badge ps-badge-danger">AUSENTE</span>';
-    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td><td>${badge}</td><td>${esc(r.hora_embarque||'')}</td></tr>`;
+    let acc='';
+    if(ADMIN){
+      acc=r.estado==='CONFIRMADO'
+        ?`<td><button class="ps-btn" style="padding:6px 12px" onclick="marcarAusente(${r.id})">↩ Pasar a ausente</button></td>`
+        :`<td><button class="ps-btn ps-btn-accent" style="padding:6px 12px" onclick="marcarEmbarcado(${r.id})">✅ Marcar embarcado</button></td>`;
+    }
+    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td><td>${badge}</td><td>${esc(r.hora_embarque||'')}</td>${acc}</tr>`;
   });
   h+='</tbody></table></div>';
   document.getElementById('pane-detalle').innerHTML=h;
+}
+
+// ── MODO EDICIÓN (admin) ──
+function toggleAdmin(){
+  if(ADMIN){
+    ADMIN=false;
+    document.getElementById('btn-admin').textContent='🔒 Modo edición';
+    render();
+    return;
+  }
+  const p=prompt('Contraseña de administrador:');
+  if(p===null)return;
+  if(p===ADMIN_PASS){
+    ADMIN=true;
+    document.getElementById('btn-admin').textContent='🔓 Edición activa';
+    render();
+  }else{
+    alert('Contraseña incorrecta.');
+  }
+}
+
+async function patchEstado(id,nuevoEstado){
+  const body={estado:nuevoEstado};
+  if(nuevoEstado==='CONFIRMADO'){
+    const ahora=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    body.hora_embarque=ahora;
+  }else{
+    body.hora_embarque='';
+  }
+  const r=await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?id=eq.${id}`,{
+    method:'PATCH',
+    headers:{
+      'Content-Type':'application/json',
+      'apikey':SB_KEY,
+      'Authorization':'Bearer '+SB_KEY,
+      'Prefer':'return=minimal'
+    },
+    body:JSON.stringify(body)
+  });
+  if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' — '+t)}
+}
+
+async function marcarEmbarcado(id){
+  if(!ADMIN)return;
+  if(!confirm('¿Marcar a este pasajero como EMBARCADO (confirmado)?'))return;
+  try{
+    await patchEstado(id,'CONFIRMADO');
+    // Actualizar en memoria y refrescar
+    const rec=DATA_ALL.find(x=>x.id===id);if(rec){rec.estado='CONFIRMADO';rec.hora_embarque=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}
+    render();
+  }catch(e){alert('No se pudo guardar el cambio: '+e.message)}
+}
+
+async function marcarAusente(id){
+  if(!ADMIN)return;
+  if(!confirm('¿Pasar a este pasajero a AUSENTE?'))return;
+  try{
+    await patchEstado(id,'AUSENTE');
+    const rec=DATA_ALL.find(x=>x.id===id);if(rec){rec.estado='AUSENTE';rec.hora_embarque=''}
+    render();
+  }catch(e){alert('No se pudo guardar el cambio: '+e.message)}
 }
 
 function exportXlsx(){
