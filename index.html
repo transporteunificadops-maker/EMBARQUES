@@ -2,416 +2,1231 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Embarques de Transporte — PETROSAR SA</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#1e2d3e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chofer PETROSAR">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>Chofer App — PETROSAR</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{
-  --ps-bg:#f0f2f6;--ps-header-bg:#1e2d3e;--ps-header-bg2:#192638;
-  --ps-card:#fff;--ps-border:#e2e8f0;--ps-text:#1a202c;--ps-muted:#718096;
-  --ps-label:#4a5568;--ps-accent:#e8a020;--ps-accent2:#f05a28;--ps-accent-glow:#e8a02033;
-  --ps-green:#38a169;--ps-red:#e53e3e;--ps-blue:#3182ce;
-  --ps-font:'Segoe UI',system-ui,-apple-system,sans-serif;
-  --ps-shadow-sm:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
-  --ps-shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
-  --ps-radius-md:10px;--ps-radius-lg:14px;
-}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);font-size:14px;line-height:1.5;min-height:100vh}
+:root{
+  --navy:#1e2d3e;--navy2:#192638;--amber:#e8a020;--amber2:#f59e0b;
+  --bg:#f0f2f6;--card:#fff;--border:#e2e8f0;
+  --muted:#718096;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;
+  --f:'Segoe UI',system-ui,sans-serif;
+}
+body{font-family:var(--f);background:var(--bg);color:#1a202c;
+  height:100dvh;overflow:hidden;display:flex;flex-direction:column}
 
-/* HEADER */
-.ps-header{background:linear-gradient(160deg,#253445 0%,var(--ps-header-bg2) 100%);padding:26px 32px 30px;position:relative;overflow:hidden}
-.ps-header::before{content:'';position:absolute;top:-60px;right:-60px;width:240px;height:240px;background:rgba(255,255,255,.03);border-radius:50%}
-.ps-header::after{content:'';position:absolute;bottom:-40px;left:30%;width:180px;height:180px;background:rgba(232,160,32,.06);border-radius:50%}
-.ps-header-top{display:flex;align-items:center;gap:14px;margin-bottom:6px;position:relative;z-index:1}
-.ps-logo img{width:40px;height:40px;object-fit:contain;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
-.ps-header-title{font-weight:700;font-size:26px;color:#fff;letter-spacing:-.3px}
-.ps-header-sub{font-size:13px;color:rgba(255,255,255,.55);margin-top:3px}
+/* ── HEADER ── */
+.hdr{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;
+  padding:7px 16px;display:flex;align-items:center;gap:12px;
+  flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.3);z-index:200}
+.hdr img{width:32px;height:32px;object-fit:contain;border-radius:7px;flex-shrink:0}
+.hdr-info{flex:1;min-width:0}
+.hdr-title{font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-sub{font-size:12px;opacity:.7;margin-top:1px}
+.hdr-kpis{display:flex;gap:8px;flex-shrink:0}
+.kpi{background:rgba(255,255,255,.12);border-radius:7px;padding:3px 10px;text-align:center}
+.kpi-v{font-size:20px;font-weight:800;line-height:1;color:var(--amber)}
+.kpi-l{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.4px;margin-top:1px}
+.btn-back{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);
+  border-radius:7px;padding:6px 12px;font-size:13px;font-family:var(--f);cursor:pointer;flex-shrink:0}
 
-/* MAIN */
-.ps-main{padding:24px 32px;max-width:1400px;margin:0 auto}
+.screen{display:none;flex:1;overflow:hidden;flex-direction:column}
+.screen.active{display:flex}
 
-/* FILTROS */
-.ps-filters{background:var(--ps-card);border:1px solid var(--ps-border);border-radius:var(--ps-radius-lg);padding:16px 20px;box-shadow:var(--ps-shadow-sm);margin-bottom:20px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
-.ps-filter-group{flex:1;min-width:150px}
-.ps-label{display:block;font-size:11px;font-weight:600;color:var(--ps-label);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
-.ps-input,.ps-select{width:100%;background:#fff;border:1.5px solid var(--ps-border);border-radius:var(--ps-radius-md);padding:9px 14px;color:var(--ps-text);font-family:var(--ps-font);font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s}
-.ps-input:focus,.ps-select:focus{border-color:var(--ps-header-bg);box-shadow:0 0 0 3px rgba(26,39,68,.1)}
-.ps-btn{padding:9px 18px;border-radius:var(--ps-radius-md);border:1px solid var(--ps-border);background:var(--ps-card);color:var(--ps-text);font-family:var(--ps-font);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:8px;box-shadow:var(--ps-shadow-sm);white-space:nowrap}
-.ps-btn:hover{background:#f7fafc;box-shadow:var(--ps-shadow-md)}
-.ps-btn-accent{background:linear-gradient(135deg,var(--ps-accent),var(--ps-accent2));border:none;color:#fff;box-shadow:0 4px 12px var(--ps-accent-glow)}
-.ps-btn-accent:hover{opacity:.9}
+/* UPLOAD */
+#sc-upload{align-items:center;justify-content:center;padding:24px 16px}
+.up-card{background:var(--card);border-radius:24px;box-shadow:0 8px 40px rgba(0,0,0,.12);
+  padding:44px 36px;text-align:center;max-width:540px;width:100%}
+.up-icon{font-size:68px;margin-bottom:16px}
+.up-title{font-size:28px;font-weight:800;color:var(--navy);margin-bottom:8px}
+.up-sub{font-size:17px;color:var(--muted);margin-bottom:28px;line-height:1.5}
+.up-drop{border:3px dashed var(--border);border-radius:16px;padding:32px 20px;
+  cursor:pointer;position:relative;margin-bottom:18px;transition:all .2s}
+.up-drop.drag-over{border-color:var(--amber);background:#fffbf0}
+.up-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.up-drop-icon{font-size:40px;margin-bottom:8px}
+.up-drop-t{font-size:18px;font-weight:600;color:var(--navy);margin-bottom:4px}
+.up-drop-s{font-size:15px;color:var(--muted)}
+.btn-up{background:linear-gradient(135deg,var(--amber),var(--amber2));color:#fff;border:none;
+  border-radius:12px;padding:16px 40px;font-size:19px;font-weight:700;font-family:var(--f);
+  cursor:pointer;box-shadow:0 3px 10px rgba(232,160,32,.4)}
+.up-err{color:var(--red);font-size:15px;margin-top:12px;font-weight:600;display:none}
 
-/* KPIs */
-.ps-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
-.ps-card{background:var(--ps-card);border:1px solid var(--ps-border);border-radius:var(--ps-radius-lg);padding:24px 20px;box-shadow:var(--ps-shadow-sm);transition:box-shadow .2s,transform .15s;text-align:center}
-.ps-card:hover{box-shadow:var(--ps-shadow-md);transform:translateY(-2px)}
-.ps-card-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px}
-.ps-icon-green{background:#48bb78}.ps-icon-red{background:#fc8181}.ps-icon-blue{background:#63b3ed}.ps-icon-orange{background:#f6ad55}.ps-icon-purple{background:#b794f4}
-.ps-card-label{font-size:11px;font-weight:600;color:var(--ps-muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px}
-.ps-card-value{font-weight:700;font-size:36px;color:var(--ps-text);line-height:1.1;margin-bottom:6px}
-.ps-card-sub{font-size:12px;color:var(--ps-muted)}
+/* LISTA DE RECORRIDOS (API) */
+.rec-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:16px;text-align:left;max-height:46vh;overflow-y:auto}
+.rec-btn{display:flex;align-items:center;gap:12px;background:#fff;border:2px solid var(--border);
+  border-radius:14px;padding:14px 16px;cursor:pointer;transition:all .15s;font-family:var(--f);text-align:left;width:100%}
+.rec-btn:hover{border-color:var(--amber);background:#fffbf0}
+.rec-btn:active{transform:scale(.98)}
+.rec-ico{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--navy),var(--navy2));
+  color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0}
+.rec-info{flex:1;min-width:0}
+.rec-nm{font-size:16px;font-weight:700;color:var(--navy);line-height:1.15}
+.rec-dst{font-size:12px;color:var(--muted);margin-top:2px}
+.btn-rec-reload{background:var(--card);color:var(--navy);border:2px solid var(--border);
+  border-radius:11px;padding:11px 24px;font-size:15px;font-weight:600;font-family:var(--f);cursor:pointer;margin-bottom:8px}
+.up-manual{margin-top:16px;text-align:left;border-top:1px solid var(--border);padding-top:14px}
+.up-manual summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);padding:6px 0}
 
-/* TABS */
-.ps-tabs{display:flex;background:var(--ps-card);border:1px solid var(--ps-border);border-radius:var(--ps-radius-lg) var(--ps-radius-lg) 0 0;padding:0 12px;box-shadow:var(--ps-shadow-sm);overflow-x:auto}
-.ps-tab{padding:14px 22px;font-family:var(--ps-font);font-size:14px;font-weight:500;color:var(--ps-muted);cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;display:flex;align-items:center;gap:8px;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none}
-.ps-tab:hover{color:var(--ps-text)}
-.ps-tab.active{color:var(--ps-header-bg);border-bottom-color:var(--ps-accent);font-weight:600}
+/* OVERVIEW */
+#map-ov{flex:1;min-height:0}
+.ov-panel{background:var(--card);border-top:3px solid var(--amber);max-height:30vh;overflow-y:auto;flex-shrink:0}
+.ov-hdr{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--card);z-index:2}
+.ov-title{font-size:17px;font-weight:700;color:var(--navy)}
+.btn-start{background:linear-gradient(135deg,var(--amber),var(--amber2));color:#fff;border:none;
+  border-radius:11px;padding:12px 32px;font-size:19px;font-weight:700;font-family:var(--f);
+  cursor:pointer;box-shadow:0 3px 10px rgba(232,160,32,.4)}
+.stop-list{padding:4px 12px 8px}
+.stop-row{display:flex;align-items:center;gap:12px;padding:9px;border-radius:10px;cursor:pointer;transition:background .15s}
+.stop-row:hover{background:#f7f9fc}
+.s-badge{width:40px;height:40px;background:var(--navy);color:#fff;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;flex-shrink:0}
+.s-badge.done{background:var(--green)}
+.s-info{flex:1;min-width:0}
+.s-name{font-size:16px;font-weight:600}
+.s-addr{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-pax{background:#eff6ff;color:var(--blue);border-radius:20px;padding:4px 12px;font-size:13px;font-weight:700;flex-shrink:0}
+.offline-badge{display:none;align-items:center;gap:6px;background:#fef9c3;border:1px solid var(--amber2);
+  border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;color:#854d0e;margin:6px 12px 0}
+.offline-badge.show{display:flex}
 
-/* CONTENT CARD */
-.ps-content-card{background:var(--ps-card);border:1px solid var(--ps-border);border-top:none;border-radius:0 0 var(--ps-radius-lg) var(--ps-radius-lg);padding:20px 24px;box-shadow:var(--ps-shadow-sm);margin-bottom:16px}
-.ps-pane{display:none}.ps-pane.active{display:block}
+/* TILE CACHE OVERLAY */
+.tile-ov{position:fixed;inset:0;z-index:9999;background:rgba(30,45,62,.9);display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px 30px;text-align:center}
+.tile-ov.show{display:flex}
+.tile-ov h2{color:#fff;font-size:22px;font-weight:800}
+.tile-ov p{color:rgba(255,255,255,.75);font-size:15px;line-height:1.5}
+.tile-bar-w{width:100%;max-width:380px;background:rgba(255,255,255,.15);border-radius:20px;height:16px;overflow:hidden}
+.tile-bar{height:100%;background:var(--amber);border-radius:20px;transition:width .3s;width:0%}
+.tile-pct{color:var(--amber);font-size:20px;font-weight:800}
 
-/* TABLA */
-.ps-table-wrap{overflow-x:auto;border-radius:var(--ps-radius-md);border:1px solid var(--ps-border)}
-.ps-table{width:100%;border-collapse:collapse;font-size:13px}
-.ps-table th{text-align:left;padding:11px 16px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ps-muted);background:#f7fafc;border-bottom:1px solid var(--ps-border);white-space:nowrap;cursor:pointer;user-select:none}
-.ps-table th:hover{color:var(--ps-text)}
-.ps-table td{padding:11px 16px;border-bottom:1px solid var(--ps-border);color:var(--ps-text)}
-.ps-table tr:last-child td{border-bottom:none}
-.ps-table tbody tr:hover td{background:#f7fafc}
-.ps-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
-.ps-badge-ok{background:#c6f6d5;color:#276749}
-.ps-badge-danger{background:#fed7d7;color:#9b2c2c}
-.ps-bar-cell{display:flex;align-items:center;gap:8px}
-.ps-bar-track{flex:1;height:8px;background:#edf2f7;border-radius:6px;overflow:hidden;min-width:60px}
-.ps-bar-fill{height:100%;background:linear-gradient(90deg,var(--ps-accent),var(--ps-accent2));border-radius:6px}
+/* NAVIGATION */
+#sc-nav{flex-direction:column}
+.prog-wrap{background:var(--navy);padding:6px 16px;flex-shrink:0;z-index:10}
+.prog-steps{display:flex;align-items:center;gap:4px;overflow-x:auto;scrollbar-width:none}
+.prog-steps::-webkit-scrollbar{display:none}
+.prog-step{flex-shrink:0;width:28px;height:9px;border-radius:5px;background:rgba(255,255,255,.2);transition:background .3s}
+.prog-step.done{background:var(--green)}
+.prog-step.cur{background:var(--amber);width:44px}
+.prog-lbl{text-align:center;color:rgba(255,255,255,.85);font-size:12px;font-weight:600;margin-top:4px}
+.nav-cols{display:flex;flex:1;overflow:hidden;min-height:0}
+.col-map{flex:1;position:relative;min-width:0;display:flex;flex-direction:column}
+#leaflet-nav{position:absolute;inset:0}
+.sib{position:absolute;top:0;left:0;right:0;z-index:20;
+  background:linear-gradient(180deg,rgba(30,45,62,.97),rgba(30,45,62,.90));
+  color:#fff;padding:11px 14px 13px;display:flex;align-items:center;gap:12px}
+.sib-circle{width:72px;height:72px;border-radius:50%;background:var(--amber);
+  display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900;
+  flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.4);border:2.5px solid rgba(255,255,255,.3)}
+.sib-circle.arr{background:var(--green)}
+.sib-text{flex:1;min-width:0}
+.sib-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.9px;opacity:.6;margin-bottom:2px}
+.sib-name{font-size:28px;font-weight:900;line-height:1.05}
+.sib-addr{font-size:20px;font-weight:600;opacity:.95;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sib-dist-box{background:rgba(255,255,255,.12);border-radius:11px;padding:9px 12px;
+  text-align:center;border:2px solid rgba(255,255,255,.2);min-width:84px;flex-shrink:0}
+.sib-dist-val{font-size:30px;font-weight:900;color:var(--amber);line-height:1}
+.sib-dist-lbl{font-size:11px;opacity:.75;text-transform:uppercase;margin-top:2px}
+.turn-bar{position:absolute;left:0;right:0;z-index:19;
+  background:rgba(10,18,30,.95);color:#fff;padding:8px 14px;
+  display:none;align-items:center;gap:10px;top:calc(var(--sib-h,114px))}
+.turn-bar.show{display:flex}
+.t-arrow{font-size:26px;flex-shrink:0}
+.t-inst{font-size:17px;font-weight:700;line-height:1.2;flex:1}
+.t-street{font-size:13px;opacity:.7;margin-top:2px}
+.t-dist{font-size:20px;font-weight:900;color:var(--amber);flex-shrink:0}
+.map-btns{position:absolute;right:12px;bottom:12px;z-index:21;display:flex;flex-direction:column;gap:8px}
+.mbtn{width:56px;height:56px;border-radius:14px;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:24px;
+  box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.mbtn-rc{background:var(--card);border:3px solid var(--amber)}
+.mbtn-voz{background:var(--card);border:3px solid var(--border)}
+.mbtn-voz.on{border-color:var(--green);background:#f0fdf4}
+.mbtn:active{transform:scale(.92)}
+.col-pax{width:38%;flex-shrink:0;background:var(--bg);display:flex;flex-direction:column;
+  border-left:3px solid var(--amber);overflow:hidden}
+.pax-col-hdr{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;
+  padding:12px 14px;flex-shrink:0}
+.pch-top{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.pch-circle{width:60px;height:60px;border-radius:50%;background:var(--amber);
+  display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;flex-shrink:0}
+.pch-circle.arr{background:var(--green)}
+.pch-name{font-size:26px;font-weight:900;line-height:1.1}
+.pch-cnt{background:rgba(255,255,255,.2);border-radius:16px;padding:3px 12px;font-size:15px;font-weight:700;flex-shrink:0}
+.pch-addr{font-size:16px;font-weight:600;opacity:.9;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pch-status{padding:7px 14px;font-size:14px;font-weight:700;text-align:center;flex-shrink:0}
+.pch-status.driving{background:#fef9c3;color:#854d0e}
+.pch-status.arrived{background:#dcfce7;color:#166534}
+.pax-scroll{flex:1;overflow-y:auto;padding:6px 10px}
+.pax-item{display:flex;align-items:center;gap:10px;padding:12px 10px;border-radius:12px;
+  cursor:pointer;border-bottom:1px solid #eee;transition:background .15s;
+  user-select:none;-webkit-user-select:none;pointer-events:auto}
+.pax-item:last-child{border-bottom:none}
+.pax-item:active{background:#e0f2fe}
+.pax-chk{width:44px;height:44px;border-radius:50%;border:2.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  flex-shrink:0;transition:all .2s;color:transparent}
+.pax-item.ok .pax-chk{background:var(--green);border-color:var(--green);color:#fff}
+.pax-item.ok .pax-nm{color:var(--muted);text-decoration:line-through}
+.pax-av{width:50px;height:50px;border-radius:50%;background:#e8f0fe;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  font-weight:700;color:var(--navy);flex-shrink:0}
+.pax-item.ok .pax-av{background:#dcfce7;color:var(--green)}
+.pax-inf{flex:1;min-width:0}
+.pax-nm{font-size:22px;font-weight:700;line-height:1.2;text-transform:capitalize}
+.pax-dni{font-size:15px;color:var(--muted);margin-top:3px}
+.pax-bar{font-size:13px;color:var(--blue);background:#eff6ff;border-radius:5px;
+  padding:2px 8px;margin-top:3px;display:inline-block}
+.pax-emp{font-size:13px;color:#854d0e;background:#fef3c7;border-radius:5px;
+  padding:2px 8px;margin-top:3px;margin-left:5px;display:inline-block;font-weight:700}
+.pax-time{font-size:14px;color:var(--green);font-weight:700;flex-shrink:0;padding-left:6px}
+.pax-col-nav{display:flex;gap:8px;padding:8px 10px 10px;background:var(--bg);flex-shrink:0}
+.btn-pnav{flex:1;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;
+  font-family:var(--f);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .1s}
+.btn-pnav:active{transform:scale(.96)}
+.btn-prev{background:var(--card);color:var(--navy);border:2px solid var(--border);flex:.6}
+.btn-next{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;box-shadow:0 3px 12px rgba(30,45,62,.3)}
+.btn-next.fin{background:linear-gradient(135deg,var(--red),#dc2626)}
 
-/* STATES */
-.ps-state{text-align:center;padding:60px 20px;color:var(--ps-muted)}
-.ps-state-icon{font-size:48px;margin-bottom:12px}
-.ps-loader{height:3px;background:linear-gradient(90deg,var(--ps-accent),var(--ps-accent2),var(--ps-accent));background-size:200% 100%;animation:sh 1s linear infinite;border-radius:3px;margin-bottom:20px}
-@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
-.ps-err{background:#fed7d7;color:#9b2c2c;border-radius:var(--ps-radius-md);padding:14px 18px;font-weight:600;margin-bottom:16px}
+/* BUSCADOR GLOBAL */
+.pax-search{padding:8px 10px 0;background:var(--bg);flex-shrink:0;position:relative}
+.pax-search input{width:100%;padding:13px 14px;border:2px solid var(--amber);border-radius:12px;
+  font-family:var(--f);font-size:17px;outline:none;background:#fff}
+.pax-search input:focus{box-shadow:0 0 0 3px rgba(232,160,32,.2)}
+.search-res{position:absolute;left:10px;right:10px;top:54px;background:#fff;border:2px solid var(--border);
+  border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:42vh;overflow-y:auto;z-index:60;display:none}
+.search-res.show{display:block}
+.sr-item{display:flex;align-items:center;gap:10px;padding:12px 12px;border-bottom:1px solid #eee;cursor:pointer}
+.sr-item:last-child{border-bottom:none}
+.sr-item:active{background:#e0f2fe}
+.sr-item.taken{opacity:.5}
+.sr-av{width:42px;height:42px;border-radius:50%;background:#e8f0fe;display:flex;align-items:center;
+  justify-content:center;font-size:18px;font-weight:700;color:var(--navy);flex-shrink:0}
+.sr-inf{flex:1;min-width:0}
+.sr-nm{font-size:17px;font-weight:700;text-transform:capitalize;line-height:1.1}
+.sr-meta{font-size:13px;color:var(--muted);margin-top:2px}
+.sr-stop{font-size:12px;color:var(--blue);background:#eff6ff;border-radius:5px;padding:1px 7px;font-weight:700}
+.sr-empty{padding:18px;text-align:center;color:var(--red);font-weight:700;font-size:15px}
+.sr-ok{font-size:22px;color:var(--green);flex-shrink:0}
 
-@media(max-width:768px){
-  .ps-header{padding:20px}.ps-main{padding:16px}
-  .ps-kpi-grid{grid-template-columns:repeat(2,1fr)}
-  .ps-filter-group{min-width:120px}
+/* FINALIZACIÓN */
+.fin-overlay{position:fixed;inset:0;z-index:500;background:var(--bg);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:30px 20px;text-align:center;gap:16px}
+.fin-overlay.show{display:flex}
+.fin-icon{font-size:72px}
+.fin-title{font-size:28px;font-weight:900;color:var(--navy)}
+.fin-sub{font-size:17px;color:var(--muted)}
+.fin-stat{background:var(--card);border-radius:14px;padding:18px 30px;font-size:20px;
+  font-weight:700;color:var(--navy);box-shadow:0 2px 10px rgba(0,0,0,.08);
+  width:100%;max-width:500px;display:flex;justify-content:space-between}
+.fin-stat span{color:var(--green)}
+.fin-warn{background:#fef9c3;border-radius:12px;padding:14px;font-size:16px;
+  font-weight:600;color:#854d0e;width:100%;max-width:500px}
+.fin-sync{border-radius:12px;padding:13px;font-size:15px;font-weight:700;
+  width:100%;max-width:500px;display:flex;align-items:center;justify-content:center;gap:8px}
+.fin-sync.ok{background:#dcfce7;color:#166534}
+.fin-sync.pending{background:#fef9c3;color:#854d0e}
+.fin-sync.error{background:#fee2e2;color:#991b1b}
+.fin-btns{display:flex;gap:12px;width:100%;max-width:500px}
+.btn-fin{flex:1;padding:18px;border:none;border-radius:13px;font-size:19px;font-weight:700;font-family:var(--f);cursor:pointer}
+.btn-fm{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff}
+.btn-fx{background:linear-gradient(135deg,var(--amber),var(--amber2));color:#fff}
+
+/* PORTRAIT WARNING */
+.portrait-warn{display:none;position:fixed;inset:0;z-index:9998;
+  background:var(--navy);color:#fff;flex-direction:column;align-items:center;
+  justify-content:center;gap:16px;text-align:center;padding:30px}
+.portrait-warn.show{display:flex}
+@media(orientation:portrait){
+  .portrait-warn{display:flex}
+}
+@media(orientation:landscape){
+  .portrait-warn{display:none!important}
 }
 </style>
 </head>
 <body>
 
-<header class="ps-header">
-  <div class="ps-header-top">
-    <div class="ps-logo">
-      <img src="data:image/png;base64,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" alt="PETROSAR SA">
-    </div>
-    <div>
-      <div class="ps-header-title">Embarques de Transporte</div>
-      <div class="ps-header-sub">Registro de embarques por recorrido · PETROSAR SA</div>
-    </div>
+<div class="portrait-warn">
+  <div style="font-size:64px">🔄</div>
+  <div style="font-size:24px;font-weight:800">Girá el tablet</div>
+  <div style="font-size:16px;opacity:.75">La app funciona en modo horizontal</div>
+</div>
+
+<div class="tile-ov" id="tile-ov">
+  <div style="font-size:48px">📥</div>
+  <h2>Descargando mapa sin conexión</h2>
+  <p>Necesitás WiFi solo esta vez.<br>Después el mapa funciona sin señal.</p>
+  <div class="tile-bar-w"><div class="tile-bar" id="tile-bar"></div></div>
+  <div class="tile-pct" id="tile-pct">0%</div>
+  <p style="font-size:13px;opacity:.6" id="tile-detail">Preparando...</p>
+</div>
+
+<header class="hdr">
+  <img src="data:image/png;base64,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" alt="PETROSAR">
+  <div class="hdr-info">
+    <div class="hdr-title" id="hdr-title">PETROSAR — Chofer App</div>
+    <div class="hdr-sub"   id="hdr-sub">Cargá tu recorrido KML</div>
   </div>
+  <div class="hdr-kpis" id="hdr-kpis" style="display:none">
+    <div class="kpi"><div class="kpi-v" id="kpi-p">—</div><div class="kpi-l">Paradas</div></div>
+    <div class="kpi"><div class="kpi-v" id="kpi-x">—</div><div class="kpi-l">Pasajeros</div></div>
+  </div>
+  <button class="btn-back" id="btn-back" style="display:none" onclick="resetApp()">⬅ Nuevo KML</button>
 </header>
 
-<main class="ps-main">
+<div id="sc-upload" class="screen active">
+  <div class="up-card">
+    <div class="up-icon">🚌</div>
+    <div class="up-title">App del Chofer</div>
+    <div class="up-sub">Elegí tu recorrido de la lista. Necesitás WiFi para cargarlo (en la base).</div>
 
-  <!-- FILTROS -->
-  <div class="ps-filters">
-    <div class="ps-filter-group">
-      <label class="ps-label">Desde</label>
-      <input type="date" class="ps-input" id="f-desde">
-    </div>
-    <div class="ps-filter-group">
-      <label class="ps-label">Hasta</label>
-      <input type="date" class="ps-input" id="f-hasta">
-    </div>
-    <div class="ps-filter-group">
-      <label class="ps-label">Recorrido</label>
-      <select class="ps-select" id="f-recorrido"><option value="">Todos</option></select>
-    </div>
-    <div class="ps-filter-group">
-      <label class="ps-label">Empresa</label>
-      <select class="ps-select" id="f-empresa"><option value="">Todas</option></select>
-    </div>
-    <div class="ps-filter-group">
-      <label class="ps-label">Estado</label>
-      <select class="ps-select" id="f-estado">
-        <option value="">Todos</option>
-        <option value="CONFIRMADO">Solo logueados</option>
-        <option value="AUSENTE">Solo ausentes</option>
-      </select>
-    </div>
-    <div class="ps-filter-group">
-      <label class="ps-label">Buscar apellido / DNI</label>
-      <input type="text" class="ps-input" id="f-busca" placeholder="Ej: Espinosa" oninput="render()">
-    </div>
-    <button class="ps-btn" onclick="loadData()">🔄 Actualizar</button>
-    <button class="ps-btn ps-btn-accent" onclick="exportXlsx()">📥 Exportar Excel</button>
-    <button class="ps-btn" id="btn-admin" onclick="toggleAdmin()">🔒 Modo edición</button>
+    <div id="rec-loading" style="padding:20px;color:var(--muted);font-size:16px">⏳ Buscando recorridos...</div>
+    <div id="rec-list" class="rec-list"></div>
+    <button class="btn-rec-reload" id="btn-rec-reload" onclick="loadRecList()" style="display:none">🔄 Recargar lista</button>
+
+    <details class="up-manual">
+      <summary>📁 Cargar archivo KML manual (respaldo)</summary>
+      <div class="up-drop" id="up-drop" style="margin-top:14px">
+        <input type="file" id="kml-in" accept=".kml" onchange="onFile(event)">
+        <div class="up-drop-icon">📂</div>
+        <div class="up-drop-t">Tocá para seleccionar el archivo</div>
+        <div class="up-drop-s">o arrastrá el KML aquí</div>
+      </div>
+    </details>
+    <div class="up-err" id="up-err"></div>
   </div>
+</div>
 
-  <div id="msg"></div>
-
-  <!-- KPIs -->
-  <div class="ps-kpi-grid" id="kpis"></div>
-
-  <!-- TABS -->
-  <div class="ps-tabs">
-    <button class="ps-tab active" data-pane="resumen">📊 Por recorrido</button>
-    <button class="ps-tab" data-pane="empresa">🏢 Por empresa</button>
-    <button class="ps-tab" data-pane="ausentes">⚠️ Ausentes</button>
-    <button class="ps-tab" data-pane="detalle">📋 Detalle</button>
+<div id="sc-ov" class="screen">
+  <div id="map-ov"></div>
+  <div class="ov-panel">
+    <div class="ov-hdr">
+      <div class="ov-title" id="ov-title">Recorrido</div>
+      <button class="btn-start" onclick="startNav()">▶ INICIAR</button>
+    </div>
+    <div class="offline-badge" id="offline-badge">📴 Mapa guardado sin señal</div>
+    <div class="stop-list" id="stop-list"></div>
   </div>
+</div>
 
-  <div class="ps-content-card">
-    <div class="ps-pane active" id="pane-resumen"></div>
-    <div class="ps-pane" id="pane-empresa"></div>
-    <div class="ps-pane" id="pane-ausentes"></div>
-    <div class="ps-pane" id="pane-detalle"></div>
+<div id="sc-nav" class="screen">
+  <div class="prog-wrap">
+    <div class="prog-steps" id="prog-steps"></div>
+    <div class="prog-lbl"   id="prog-lbl"></div>
   </div>
+  <div class="nav-cols">
+    <div class="col-map">
+      <div id="leaflet-nav"></div>
+      <div class="sib" id="sib">
+        <div class="sib-circle" id="sib-c">1</div>
+        <div class="sib-text">
+          <div class="sib-lbl" id="sib-lbl">PRÓXIMA PARADA</div>
+          <div class="sib-name" id="sib-name">Parada 1</div>
+          <div class="sib-addr" id="sib-addr">📍 Cargando...</div>
+        </div>
+        <div class="sib-dist-box">
+          <div class="sib-dist-val" id="sib-dv">—</div>
+          <div class="sib-dist-lbl" id="sib-dl">sin GPS</div>
+        </div>
+      </div>
+      <div class="turn-bar" id="turn-bar">
+        <div class="t-arrow" id="t-arrow">↑</div>
+        <div style="flex:1">
+          <div class="t-inst" id="t-inst">Calculando ruta...</div>
+          <div class="t-street" id="t-street"></div>
+        </div>
+        <div class="t-dist" id="t-dist">—</div>
+      </div>
+      <div class="map-btns">
+        <button class="mbtn mbtn-voz on" id="btn-voz" onclick="toggleVoz()" title="Voz">🔊</button>
+        <button class="mbtn mbtn-rc"      onclick="reCenter()" title="Centrar">🎯</button>
+      </div>
+    </div>
+    <div class="col-pax" id="col-pax">
+      <div class="pax-col-hdr">
+        <div class="pch-top">
+          <div class="pch-circle" id="pch-c">1</div>
+          <div style="flex:1;min-width:0">
+            <div class="pch-name" id="pch-name">Parada 1</div>
+          </div>
+          <div class="pch-cnt" id="pch-cnt">0/0</div>
+        </div>
+        <div class="pch-addr" id="pch-addr">📍 ...</div>
+      </div>
+      <div class="pch-status driving" id="pch-status">🚌 En camino · Tocá cada pasajero al subir</div>
+      <div class="pax-scroll" id="pax-list"></div>
+      <div class="pax-search">
+        <input type="text" id="pax-search-in" placeholder="🔎 Buscar por DNI o apellido (cualquier parada)" oninput="onSearch(this.value)" autocomplete="off">
+        <div class="search-res" id="search-res"></div>
+      </div>
+      <div class="pax-col-nav">
+        <button class="btn-pnav btn-prev" onclick="prevStop()">◀ Anterior</button>
+        <button class="btn-pnav btn-next" id="btn-next" onclick="nextStop()">Siguiente ▶</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-</main>
+<div class="fin-overlay" id="fin-overlay">
+  <div class="fin-icon">🎯</div>
+  <div class="fin-title">Recorrido completo</div>
+  <div class="fin-sub">Todas las paradas cubiertas</div>
+  <div class="fin-stat"><div>Pasajeros confirmados</div><span id="fin-stat">0 / 0</span></div>
+  <div class="fin-warn" id="fin-warn" style="display:none"></div>
+  <div class="fin-sync pending" id="fin-sync">⏳ Guardando embarque...</div>
+  <div class="fin-btns">
+    <button class="btn-fin btn-fm" onclick="goOv()">🗺 Ver mapa</button>
+    <button class="btn-fin btn-fx" onclick="dlXlsx()">📥 Descargar Excel</button>
+  </div>
+</div>
 
 <script>
+// ════════════════════════════════════════════════════════
+// CONFIG SUPABASE
+// ════════════════════════════════════════════════════════
 const SB_URL='https://acvkgxwkoprftxfutnbq.supabase.co';
 const SB_KEY='sb_publishable_oxT-JSRhioj00iI_iy_Sgg_xnyBG8RO';
 const SB_TABLE='transporte_embarques';
+const PENDING_KEY='petrosar_embarques_pendientes';
 
-let RAW=[]; // todos los registros sin filtrar (para poblar selects)
-let DATA_ALL=[]; // lo que vino de Supabase con filtros server-side
-let DATA=[]; // registros visibles tras búsqueda por apellido/DNI
-let ADMIN=false; // modo edición activado con clave
-const ADMIN_PASS='Petrosar103!';
+// ════════════════════════════════════════════════════════
+// ESTADO
+// ════════════════════════════════════════════════════════
+let STOPS=[], ROUTE='', cur=0, addrs={}, routeCoords=null, navSteps=[];
+let boarded={};
+let mapOv=null, mapNav=null, vehicleMk=null, vehiclePos=null;
+let watchId=null, following=true, atStop=false, paxShown=false;
+let vozOn=true, spokenAt={}, curStepIdx=0;
+const ARRIVE_M=50, DEPART_M=200;
 
-// ── Tabs ──
-document.querySelectorAll('.ps-tab').forEach(t=>{
-  t.onclick=()=>{
-    document.querySelectorAll('.ps-tab').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.ps-pane').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('pane-'+t.dataset.pane).classList.add('active');
-  };
-});
-
-function msg(html,err){document.getElementById('msg').innerHTML=html?`<div class="${err?'ps-err':''}">${html}</div>`:''}
-
-async function sbFetch(query){
-  const r=await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?${query}`,{
-    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+// ════════════════════════════════════════════════════════
+// SERVICE WORKER
+// ════════════════════════════════════════════════════════
+let swReg=null;
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').then(r=>{swReg=r}).catch(()=>{});
+  navigator.serviceWorker.addEventListener('message',e=>{
+    if(e.data?.type==='TILE_PROGRESS'){
+      const p=Math.round(e.data.done/e.data.total*100);
+      document.getElementById('tile-bar').style.width=p+'%';
+      document.getElementById('tile-pct').textContent=p+'%';
+      document.getElementById('tile-detail').textContent=e.data.done+' / '+e.data.total+' tiles';
+    }
+    if(e.data?.type==='TILE_DONE'){
+      document.getElementById('tile-ov').classList.remove('show');
+      document.getElementById('offline-badge').classList.add('show');
+    }
   });
-  if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' — '+t)}
-  return r.json();
 }
 
-async function loadData(){
-  msg('<div class="ps-loader"></div>');
+// ════════════════════════════════════════════════════════
+// TILE CACHE
+// ════════════════════════════════════════════════════════
+const tilY=(lat,z)=>Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*Math.pow(2,z));
+const tilX=(lng,z)=>Math.floor((lng+180)/360*Math.pow(2,z));
+
+async function cacheTiles(coords){
+  // Área SOLO de las paradas reales (ignora la base lejana / Cerro Dragón)
+  const pts=STOPS.filter(s=>s.lat&&s.lng).map(s=>[s.lat,s.lng]);
+  if(pts.length<1)return;
+  const lats=pts.map(c=>c[0]),lngs=pts.map(c=>c[1]);
+  const [mnLat,mxLat,mnLng,mxLng]=[Math.min(...lats)-.015,Math.max(...lats)+.015,Math.min(...lngs)-.015,Math.max(...lngs)+.015];
+  const set=new Set();
+  // 1) Vista general de la zona de paradas: zoom 13 a 15 (área chica, peso bajo)
+  for(const z of [13,14,15]){
+    const[x0,x1,y0,y1]=[tilX(mnLng,z),tilX(mxLng,z),tilY(mxLat,z),tilY(mnLat,z)];
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)set.add(`${z}/${x}/${y}`);
+  }
+  // 2) Detalle de calles alrededor de cada parada: zoom 16,17 recuadro ~1.2km
+  const DELTA=0.011; // ~1.2 km de radio
+  for(const s of STOPS){
+    if(!s.lat||!s.lng)continue;
+    const a=s.lat-DELTA,b=s.lat+DELTA,c=s.lng-DELTA,d=s.lng+DELTA;
+    for(const z of [16,17]){
+      const[x0,x1,y0,y1]=[tilX(c,z),tilX(d,z),tilY(b,z),tilY(a,z)];
+      for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)set.add(`${z}/${x}/${y}`);
+    }
+  }
+  const urls=[...set].map(k=>`https://a.tile.openstreetmap.org/${k}.png`);
+  if(!urls.length)return;
+  document.getElementById('tile-ov').classList.add('show');
+  document.getElementById('tile-detail').textContent='0 / '+urls.length+' tiles';
+  {
+    const cache=await caches.open('chofer-tiles-v1');let done=0;
+    // Descarga por tandas de 6 con pausa, para no saturar OSM
+    const BATCH=6;
+    for(let i=0;i<urls.length;i+=BATCH){
+      const tanda=urls.slice(i,i+BATCH);
+      await Promise.all(tanda.map(async url=>{
+        for(let intento=0;intento<2;intento++){
+          try{const r=await fetch(url,{mode:'cors'});if(r.ok){await cache.put(url,r);break}}catch(_){}
+          await new Promise(r=>setTimeout(r,300));
+        }
+        done++;
+      }));
+      const p=Math.round(done/urls.length*100);
+      document.getElementById('tile-bar').style.width=p+'%';
+      document.getElementById('tile-pct').textContent=p+'%';
+      document.getElementById('tile-detail').textContent=done+' / '+urls.length+' tiles';
+      await new Promise(r=>setTimeout(r,120));
+    }
+    document.getElementById('tile-ov').classList.remove('show');document.getElementById('offline-badge').classList.add('show');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// UPLOAD / KML
+// ════════════════════════════════════════════════════════
+const dropEl=document.getElementById('up-drop');
+dropEl.addEventListener('dragover',e=>{e.preventDefault();dropEl.classList.add('drag-over')});
+dropEl.addEventListener('dragleave',()=>dropEl.classList.remove('drag-over'));
+dropEl.addEventListener('drop',e=>{e.preventDefault();dropEl.classList.remove('drag-over');if(e.dataTransfer.files[0])processKML(e.dataTransfer.files[0])});
+function onFile(e){if(e.target.files[0])processKML(e.target.files[0])}
+
+function processKML(file){
+  if(!file.name.toLowerCase().endsWith('.kml')){showErr('Debe ser un archivo .kml');return}
+  const r=new FileReader();
+  r.onload=e=>processKMLText(e.target.result);
+  r.readAsText(file,'UTF-8');
+}
+
+// Procesa el texto de un KML (lo usan tanto el archivo manual como la API)
+function processKMLText(txt,nombreFallback){
+  try{const res=parseKML(txt);
+    if(!res||!res.stops.length){showErr('No se encontraron paradas');return}
+    STOPS=res.stops;ROUTE=res.name||nombreFallback||'Recorrido';boarded={};addrs={};routeCoords=null;navSteps=[];cur=0;
+    launchApp();
+  }catch(ex){showErr('Error: '+ex.message)}
+}
+
+// ════════════════════════════════════════════════════════
+// LISTA DE RECORRIDOS DESDE LA API (otra app)
+// ════════════════════════════════════════════════════════
+const REC_API='https://ekagurvuoccrxfbgarau.supabase.co/functions/v1/kml?lista=1';
+let REC_CACHE_KEY='petrosar_recorridos_lista';
+
+async function loadRecList(){
+  const loading=document.getElementById('rec-loading');
+  const list=document.getElementById('rec-list');
+  const reload=document.getElementById('btn-rec-reload');
+  loading.style.display='block';loading.textContent='⏳ Buscando recorridos...';
+  list.innerHTML='';reload.style.display='none';
   try{
-    // Si no hay registros aún en RAW, traer todo una vez para poblar selects
-    if(!RAW.length){
-      RAW=await sbFetch('select=*&order=fecha.desc&limit=10000');
-      populateSelects();
-    }
-    // Construir filtro server-side
-    const params=['select=*','order=fecha.desc,recorrido.asc,parada.asc','limit=10000'];
-    const d=document.getElementById('f-desde').value;
-    const h=document.getElementById('f-hasta').value;
-    const rec=document.getElementById('f-recorrido').value;
-    const emp=document.getElementById('f-empresa').value;
-    const est=document.getElementById('f-estado').value;
-    if(d)params.push('fecha=gte.'+d);
-    if(h)params.push('fecha=lte.'+h);
-    if(rec)params.push('recorrido=eq.'+encodeURIComponent(rec));
-    if(emp)params.push('empresa=eq.'+encodeURIComponent(emp));
-    if(est)params.push('estado=eq.'+encodeURIComponent(est));
-    DATA_ALL=await sbFetch(params.join('&'));
-    msg('');
-    render();
+    const r=await fetch(REC_API);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const recs=await r.json();
+    // Guardar lista en local para verla aunque no haya señal después
+    try{localStorage.setItem(REC_CACHE_KEY,JSON.stringify(recs))}catch(_){}
+    renderRecList(recs);
   }catch(e){
-    msg('⚠️ No se pudieron cargar los datos. '+e.message,true);
-    document.getElementById('kpis').innerHTML='';
-  }
-}
-
-function populateSelects(){
-  const recs=[...new Set(RAW.map(r=>r.recorrido).filter(Boolean))].sort();
-  const emps=[...new Set(RAW.map(r=>r.empresa).filter(Boolean))].sort();
-  const sr=document.getElementById('f-recorrido');
-  const se=document.getElementById('f-empresa');
-  recs.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sr.appendChild(o)});
-  emps.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;se.appendChild(o)});
-}
-
-function render(){
-  // Aplica búsqueda por apellido/DNI sobre lo cargado
-  const q=document.getElementById('f-busca').value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const qd=document.getElementById('f-busca').value.replace(/\D/g,'');
-  if(q.length<2&&qd.length<3){
-    DATA=DATA_ALL.slice();
-  }else{
-    DATA=DATA_ALL.filter(r=>{
-      const nm=String(r.nombre_pasajero||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      const dn=String(r.dni||'').replace(/\D/g,'');
-      return (q.length>=2&&nm.includes(q))||(qd.length>=3&&dn.includes(qd));
-    });
-  }
-  renderKpis();
-  renderResumen();
-  renderEmpresa();
-  renderAusentes();
-  renderDetalle();
-}
-
-function renderKpis(){
-  const tot=DATA.length;
-  const conf=DATA.filter(r=>r.estado==='CONFIRMADO').length;
-  const aus=tot-conf;
-  const pct=tot?Math.round(conf/tot*100):0;
-  const recs=new Set(DATA.map(r=>r.recorrido)).size;
-  document.getElementById('kpis').innerHTML=`
-    <div class="ps-card"><div class="ps-card-icon ps-icon-blue">🚌</div><div class="ps-card-label">Recorridos</div><div class="ps-card-value">${recs}</div><div class="ps-card-sub">con embarques</div></div>
-    <div class="ps-card"><div class="ps-card-icon ps-icon-purple">👥</div><div class="ps-card-label">Pasajeros</div><div class="ps-card-value">${tot}</div><div class="ps-card-sub">total registrados</div></div>
-    <div class="ps-card"><div class="ps-card-icon ps-icon-green">✅</div><div class="ps-card-label">Confirmados</div><div class="ps-card-value">${conf}</div><div class="ps-card-sub">${pct}% del total</div></div>
-    <div class="ps-card"><div class="ps-card-icon ps-icon-red">⚠️</div><div class="ps-card-label">Ausentes</div><div class="ps-card-value">${aus}</div><div class="ps-card-sub">no embarcaron</div></div>`;
-}
-
-function emptyState(icon,txt){return `<div class="ps-state"><div class="ps-state-icon">${icon}</div>${txt}</div>`}
-
-function renderResumen(){
-  const g={};
-  DATA.forEach(r=>{
-    const k=r.fecha+'||'+r.recorrido;
-    if(!g[k])g[k]={fecha:r.fecha,recorrido:r.recorrido,tot:0,conf:0};
-    g[k].tot++;if(r.estado==='CONFIRMADO')g[k].conf++;
-  });
-  const rows=Object.values(g).sort((a,b)=>b.fecha.localeCompare(a.fecha)||a.recorrido.localeCompare(b.recorrido));
-  if(!rows.length){document.getElementById('pane-resumen').innerHTML=emptyState('📭','No hay registros para los filtros seleccionados.');return}
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Pasajeros</th><th>Confirmados</th><th>Ausentes</th><th style="width:160px">% Confirmado</th></tr></thead><tbody>`;
-  rows.forEach(r=>{
-    const pct=r.tot?Math.round(r.conf/r.tot*100):0;
-    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td><b>${esc(r.recorrido)}</b></td><td>${r.tot}</td><td>${r.conf}</td><td>${r.tot-r.conf}</td><td><div class="ps-bar-cell"><div class="ps-bar-track"><div class="ps-bar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div></td></tr>`;
-  });
-  h+='</tbody></table></div>';
-  document.getElementById('pane-resumen').innerHTML=h;
-}
-
-function renderEmpresa(){
-  const g={};
-  DATA.forEach(r=>{
-    const e=r.empresa||'(Sin empresa)';
-    if(!g[e])g[e]={empresa:e,tot:0,conf:0};
-    g[e].tot++;if(r.estado==='CONFIRMADO')g[e].conf++;
-  });
-  const rows=Object.values(g).sort((a,b)=>b.tot-a.tot);
-  if(!rows.length){document.getElementById('pane-empresa').innerHTML=emptyState('📭','No hay registros.');return}
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Empresa</th><th>Pasajeros</th><th>Confirmados</th><th>Ausentes</th><th style="width:160px">% Confirmado</th></tr></thead><tbody>`;
-  rows.forEach(r=>{
-    const pct=r.tot?Math.round(r.conf/r.tot*100):0;
-    h+=`<tr><td><b>🏢 ${esc(r.empresa)}</b></td><td>${r.tot}</td><td>${r.conf}</td><td>${r.tot-r.conf}</td><td><div class="ps-bar-cell"><div class="ps-bar-track"><div class="ps-bar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div></td></tr>`;
-  });
-  h+='</tbody></table></div>';
-  document.getElementById('pane-empresa').innerHTML=h;
-}
-
-function renderAusentes(){
-  const rows=DATA.filter(r=>r.estado==='AUSENTE');
-  if(!rows.length){document.getElementById('pane-ausentes').innerHTML=emptyState('🎉','No hay ausentes en los filtros seleccionados.');return}
-  const accCol=ADMIN?'<th>Acción</th>':'';
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th>${accCol}</tr></thead><tbody>`;
-  rows.forEach(r=>{
-    const acc=ADMIN?`<td><button class="ps-btn ps-btn-accent" style="padding:6px 12px" onclick="marcarEmbarcado(${r.id})">✅ Marcar embarcado</button></td>`:'';
-    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td>${acc}</tr>`;
-  });
-  h+='</tbody></table></div>';
-  document.getElementById('pane-ausentes').innerHTML=h;
-}
-
-function renderDetalle(){
-  if(!DATA.length){document.getElementById('pane-detalle').innerHTML=emptyState('📭','No hay registros.');return}
-  const accCol=ADMIN?'<th>Acción</th>':'';
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th><th>Estado</th><th>Hora</th>${accCol}</tr></thead><tbody>`;
-  DATA.forEach(r=>{
-    const badge=r.estado==='CONFIRMADO'?'<span class="ps-badge ps-badge-ok">CONFIRMADO</span>':'<span class="ps-badge ps-badge-danger">AUSENTE</span>';
-    let acc='';
-    if(ADMIN){
-      acc=r.estado==='CONFIRMADO'
-        ?`<td><button class="ps-btn" style="padding:6px 12px" onclick="marcarAusente(${r.id})">↩ Pasar a ausente</button></td>`
-        :`<td><button class="ps-btn ps-btn-accent" style="padding:6px 12px" onclick="marcarEmbarcado(${r.id})">✅ Marcar embarcado</button></td>`;
+    // Sin señal: intentar mostrar la última lista guardada
+    let cached=null;
+    try{cached=JSON.parse(localStorage.getItem(REC_CACHE_KEY)||'null')}catch(_){}
+    if(cached&&cached.length){
+      renderRecList(cached);
+      loading.style.display='block';
+      loading.innerHTML='📴 Sin señal — mostrando última lista guardada';
+    }else{
+      loading.style.display='block';
+      loading.innerHTML='⚠️ No se pudo cargar la lista. Revisá la conexión.';
+      reload.style.display='inline-block';
     }
-    h+=`<tr><td>${fmtFecha(r.fecha)}</td><td>${esc(r.recorrido)}</td><td>${esc(r.parada||'')}</td><td>${esc(r.empresa||'')}</td><td><b>${esc(r.nombre_pasajero||'')}</b></td><td>${esc(r.dni||'')}</td><td>${badge}</td><td>${esc(r.hora_embarque||'')}</td>${acc}</tr>`;
+  }
+}
+
+function renderRecList(recs){
+  const loading=document.getElementById('rec-loading');
+  const list=document.getElementById('rec-list');
+  const reload=document.getElementById('btn-rec-reload');
+  loading.style.display='none';
+  reload.style.display='inline-block';
+  if(!recs||!recs.length){loading.style.display='block';loading.textContent='No hay recorridos disponibles.';return}
+  // Ordenar por nombre
+  recs.sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre)));
+  list.innerHTML='';
+  recs.forEach(rc=>{
+    const b=document.createElement('button');
+    b.className='rec-btn';
+    b.innerHTML=`<div class="rec-ico">${esc(rc.destino||'🚌')}</div>
+      <div class="rec-info"><div class="rec-nm">${esc(rc.nombre||'Recorrido')}</div>
+      <div class="rec-dst">Tocá para cargar</div></div>`;
+    b.onclick=()=>pickRecorrido(rc);
+    list.appendChild(b);
   });
-  h+='</tbody></table></div>';
-  document.getElementById('pane-detalle').innerHTML=h;
 }
 
-// ── MODO EDICIÓN (admin) ──
-function toggleAdmin(){
-  if(ADMIN){
-    ADMIN=false;
-    document.getElementById('btn-admin').textContent='🔒 Modo edición';
-    render();
-    return;
-  }
-  const p=prompt('Contraseña de administrador:');
-  if(p===null)return;
-  if(p===ADMIN_PASS){
-    ADMIN=true;
-    document.getElementById('btn-admin').textContent='🔓 Edición activa';
-    render();
-  }else{
-    alert('Contraseña incorrecta.');
+async function pickRecorrido(rc){
+  const loading=document.getElementById('rec-loading');
+  document.getElementById('up-err').style.display='none';
+  loading.style.display='block';
+  loading.textContent='⏳ Cargando '+(rc.nombre||'recorrido')+'...';
+  try{
+    const r=await fetch(rc.kml_url);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const txt=await r.text();
+    loading.style.display='none';
+    processKMLText(txt,rc.nombre);
+  }catch(e){
+    loading.style.display='block';
+    loading.innerHTML='⚠️ No se pudo bajar el recorrido. ¿Tenés señal? '+e.message;
   }
 }
 
-async function patchEstado(id,nuevoEstado){
-  const body={estado:nuevoEstado};
-  if(nuevoEstado==='CONFIRMADO'){
-    const ahora=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    body.hora_embarque=ahora;
-  }else{
-    body.hora_embarque='';
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function parseKML(txt){
+  const doc=new DOMParser().parseFromString(txt,'text/xml');
+  const ns='http://www.opengis.net/kml/2.2';
+  const tx=(el,tag)=>(el.getElementsByTagNameNS(ns,tag)[0]||el.getElementsByTagName(tag)[0]||{textContent:''}).textContent.trim();
+  const co=el=>{const c=tx(el,'coordinates');if(!c)return{};const p=c.trim().split(',');return p.length>=2?{lng:parseFloat(p[0]),lat:parseFloat(p[1])}:{}};
+  const rName=tx(doc,'name')||'Recorrido';
+  const seen=new Set();
+  const pms=[...doc.getElementsByTagNameNS(ns,'Placemark'),...doc.getElementsByTagName('Placemark')].filter(p=>{if(seen.has(p))return false;seen.add(p);return true});
+  const stopMap={},paxBy={};
+  for(const pm of pms){
+    const name=tx(pm,'name'),desc=tx(pm,'description'),{lat,lng}=co(pm);
+    if(pm.getElementsByTagNameNS(ns,'LineString').length||pm.getElementsByTagName('LineString').length)continue;
+    if(/^Base:/i.test(name)||/^Destino/i.test(name))continue;
+    const sm=name.match(/^Parada\s*(\d+)\s*:/i);
+    if(sm){const id=parseInt(sm[1]),lbl='Parada '+id;if(!stopMap[lbl])stopMap[lbl]={id,name:lbl,lat,lng,barrio:'',passengers:[]};continue}
+    if(/Legajo\s*:/i.test(desc)){
+      const dni=(desc.match(/Legajo\s*:\s*([^|\n]+)/i)||[,''])[1].trim();
+      const bar=(desc.match(/Barrio\s*:\s*([^|\n]+)/i)||[,''])[1].trim().replace(/^-$/,'');
+      const stp=(desc.match(/Parada\s*:\s*([^|\n]+)/i)||[,''])[1].trim();
+      const emp=parseEmpresa(desc);
+      if(!paxBy[stp])paxBy[stp]=[];
+      paxBy[stp].push({name:tcase(cleanName(name)),dni:fmtDni(dni),barrio:bar&&bar!=='-'?bar:'',empresa:emp});
+      continue;
+    }
   }
-  const r=await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?id=eq.${id}`,{
-    method:'PATCH',
+  for(const lbl of Object.keys(paxBy)){if(stopMap[lbl]){stopMap[lbl].passengers=paxBy[lbl];const fb=paxBy[lbl].find(p=>p.barrio);if(fb)stopMap[lbl].barrio=fb.barrio}}
+  for(const pm of pms){
+    const name=tx(pm,'name'),desc=tx(pm,'description');
+    const sm=name.match(/^Parada\s*(\d+)\s*:/i);if(!sm)continue;
+    const lbl='Parada '+parseInt(sm[1]);
+    if(!stopMap[lbl]||stopMap[lbl].passengers.length>0)continue;
+    // Fallback formato viejo: "2 pasajeros: NOMBRE (DNI), NOMBRE (DNI)"
+    // o nuevo resumen: "2 pasajeros (...) — NOMBRE (DNI) [EMP], ..."
+    const dash=desc.indexOf('—');
+    const after=dash>=0?dash+1:desc.indexOf(':')+1;if(after<=0)continue;
+    const str=desc.slice(after);const re=/([A-Za-záéíóúÁÉÍÓÚñÑüÜ ,.]+?)\s*\((\d+)\)\s*(?:\[([^\]]+)\])?/g;let m;
+    while((m=re.exec(str))!==null)stopMap[lbl].passengers.push({name:tcase(m[1].replace(/,/g,' ').replace(/\s+/g,' ').trim()),dni:fmtDni(m[2]),barrio:'',empresa:(m[3]||'').trim()});
+  }
+  return{name:rName,stops:Object.values(stopMap).sort((a,b)=>a.id-b.id)};
+}
+// Captura el nombre largo de la empresa: "Empresa: Baker Hughes (B.Hughes) | ..." -> "Baker Hughes"
+function parseEmpresa(desc){
+  const m=desc.match(/Empresa\s*:\s*([^|\n]+)/i);
+  if(!m)return '';
+  let e=m[1].trim();
+  e=e.replace(/\s*\([^)]*\)\s*$/,'').trim(); // saca el "(CÓDIGO)" final
+  return e;
+}
+// Limpia el sufijo "[EMP]" del nombre del Placemark
+const cleanName=s=>s.replace(/\s*\[[^\]]*\]\s*$/,'').trim();
+const tcase=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+const fmtDni=r=>{const d=r.replace(/\D/g,'');return d.length<8?d:d.length>8?d:d.replace(/(\d{2})(\d{3})(\d{3})/,'$1.$2.$3')};
+function showErr(m){const e=document.getElementById('up-err');e.style.display='block';e.textContent='⚠️ '+m}
+
+// ════════════════════════════════════════════════════════
+// LAUNCH / RESET
+// ════════════════════════════════════════════════════════
+async function launchApp(){
+  document.getElementById('hdr-title').textContent=ROUTE;
+  document.getElementById('hdr-sub').textContent='Vista general del recorrido';
+  document.getElementById('hdr-kpis').style.display='flex';
+  document.getElementById('btn-back').style.display='inline-block';
+  document.getElementById('kpi-p').textContent=STOPS.length;
+  document.getElementById('kpi-x').textContent=STOPS.reduce((s,p)=>s+p.passengers.length,0);
+  buildStopList();
+  showScreen('sc-ov');
+  flushPending(); // intenta subir embarques pendientes al cargar
+  const r=await fetchOSRM();
+  routeCoords=r.coords;navSteps=r.steps;
+  buildOvMap();fetchAddrs();
+  if(routeCoords?.length>1)cacheTiles(routeCoords);
+}
+
+function resetApp(){
+  if(watchId){navigator.geolocation.clearWatch(watchId);watchId=null}
+  if(mapOv){mapOv.remove();mapOv=null}
+  if(mapNav){mapNav.remove();mapNav=null}
+  vehicleMk=null;following=true;atStop=false;paxShown=false;spokenAt={};curStepIdx=0;
+  document.getElementById('stop-list').innerHTML='';
+  document.getElementById('kml-in').value='';
+  document.getElementById('up-err').style.display='none';
+  document.getElementById('hdr-kpis').style.display='none';
+  document.getElementById('btn-back').style.display='none';
+  document.getElementById('fin-overlay').classList.remove('show');
+  document.getElementById('offline-badge').classList.remove('show');
+  document.getElementById('hdr-title').textContent='PETROSAR — Chofer App';
+  showScreen('sc-upload');
+  loadRecList();
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='sc-ov'&&mapOv)setTimeout(()=>mapOv.invalidateSize(),200);
+  if(id==='sc-nav'&&mapNav)setTimeout(()=>mapNav.invalidateSize(),200);
+}
+
+// ════════════════════════════════════════════════════════
+// NOMINATIM + OSRM
+// ════════════════════════════════════════════════════════
+async function fetchAddr(lat,lng){
+  try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&accept-language=es`);const d=await r.json();if(d?.address){const a=d.address;const rd=a.road||a.pedestrian||'';const hn=a.house_number?' '+a.house_number:'';const sb=a.suburb||a.neighbourhood||'';if(rd)return rd+hn+(sb?' · '+sb:'');if(sb)return sb}}catch(e){}return null
+}
+async function fetchAddrs(){
+  for(let i=0;i<STOPS.length;i++){
+    const s=STOPS[i];if(!s.lat||!s.lng)continue;
+    const a=await fetchAddr(s.lat,s.lng);
+    if(a){
+      addrs[i]=a;
+      const el=document.getElementById('sa-'+i);if(el)el.textContent='📍 '+a;
+      if(i===cur){refreshSIB();refreshPaxCol()}
+    }
+    await new Promise(r=>setTimeout(r,420));
+  }
+}
+
+async function fetchOSRM(){
+  try{
+    const v=STOPS.filter(s=>s.lat&&s.lng);if(v.length<2)return{coords:null,steps:[]};
+    const url=`https://router.project-osrm.org/route/v1/driving/${v.map(s=>s.lng+','+s.lat).join(';')}?steps=true&overview=full&geometries=geojson`;
+    const r=await fetch(url);const d=await r.json();
+    if(d.code==='Ok'&&d.routes?.[0]){
+      const coords=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+      const steps=[];
+      for(const leg of d.routes[0].legs)for(const st of (leg.steps||[]))
+        if(st.maneuver)steps.push({lat:st.maneuver.location[1],lng:st.maneuver.location[0],
+          type:st.maneuver.type,modifier:st.maneuver.modifier||'',
+          name:st.name||'',distance:st.distance,
+          inst:buildInst(st.maneuver.type,st.maneuver.modifier||'',st.name||'')});
+      return{coords,steps};
+    }
+  }catch(e){}
+  return{coords:STOPS.filter(s=>s.lat&&s.lng).map(s=>[s.lat,s.lng]),steps:[]};
+}
+
+function buildInst(type,mod,street){
+  const c=street?` por ${street}`:'';
+  switch(type){
+    case 'depart':return `Inicie el recorrido${c}`;
+    case 'arrive':return `Ha llegado a su destino`;
+    case 'turn':
+      if(mod==='left')return `Gire a la izquierda${c}`;
+      if(mod==='right')return `Gire a la derecha${c}`;
+      if(mod==='sharp left')return `Gire bruscamente a la izquierda${c}`;
+      if(mod==='sharp right')return `Gire bruscamente a la derecha${c}`;
+      if(mod==='slight left')return `Doble levemente a la izquierda${c}`;
+      if(mod==='slight right')return `Doble levemente a la derecha${c}`;
+      if(mod==='uturn')return `Dé media vuelta${c}`;
+      return `Continúe${c}`;
+    case 'new name':case 'continue':return `Continúe${c}`;
+    case 'merge':return `Incorpórese${c}`;
+    case 'fork':return mod==='left'?`En la bifurcación doble a la izquierda${c}`:`En la bifurcación doble a la derecha${c}`;
+    case 'roundabout':case 'rotary':return `Tome la rotonda y continúe${c}`;
+    default:return `Continúe${c}`;
+  }
+}
+function turnArrow(type,mod){
+  if(type==='arrive')return '📍';if(type==='depart')return '▶';
+  if(type==='roundabout'||type==='rotary')return '🔄';
+  switch(mod){case 'left':return '↰';case 'right':return '↱';case 'sharp left':return '↺';case 'sharp right':return '↻';case 'slight left':return '↖';case 'slight right':return '↗';case 'uturn':return '↩';default:return '↑'}
+}
+
+// ════════════════════════════════════════════════════════
+// VOZ
+// ════════════════════════════════════════════════════════
+function toggleVoz(){
+  vozOn=!vozOn;
+  const btn=document.getElementById('btn-voz');
+  btn.textContent=vozOn?'🔊':'🔇';btn.className='mbtn mbtn-voz'+(vozOn?' on':'');
+  if(vozOn)say('Navegación por voz activada');
+}
+function say(text){
+  if(!vozOn||!window.speechSynthesis)return;
+  window.speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='es-AR';u.rate=1.0;u.pitch=1.0;u.volume=1.0;
+  window.speechSynthesis.speak(u);
+}
+
+// ════════════════════════════════════════════════════════
+// OVERVIEW MAP
+// ════════════════════════════════════════════════════════
+function buildOvMap(){
+  const el=document.getElementById('map-ov');
+  const init=()=>{
+    if(mapOv){mapOv.remove();mapOv=null}
+    mapOv=L.map(el,{zoomControl:true,attributionControl:true});
+    L.tileLayer('https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(mapOv);
+    if(routeCoords?.length>1){L.polyline(routeCoords,{color:'#1e2d3e',weight:5,opacity:.85}).addTo(mapOv);addArrows(mapOv,routeCoords)}
+    STOPS.forEach((s,i)=>{if(!s.lat||!s.lng)return;const ic=L.divIcon({html:`<div style="width:34px;height:34px;border-radius:50%;background:#1e2d3e;color:#fff;display:flex;align-items:center;justify-content:center;font-family:Segoe UI,sans-serif;font-weight:800;font-size:15px;border:3px solid #e8a020;box-shadow:0 2px 8px rgba(0,0,0,.4)">${s.id}</div>`,className:'',iconSize:[34,34],iconAnchor:[17,17]});L.marker([s.lat,s.lng],{icon:ic}).addTo(mapOv).on('click',()=>{cur=i;startNav()}).bindTooltip(`P${s.id} · ${s.passengers.length} pax`,{direction:'top'})});
+    const b=L.latLngBounds(STOPS.filter(s=>s.lat&&s.lng).map(s=>[s.lat,s.lng]));mapOv.fitBounds(b,{padding:[40,40]});
+    setTimeout(()=>mapOv.invalidateSize(),300);
+  };
+  if(el.offsetWidth>0){init()}else{const ro=new ResizeObserver(()=>{if(el.offsetWidth>0){ro.disconnect();init()}});ro.observe(el)}
+}
+function addArrows(map,coords){
+  const step=Math.max(1,Math.floor(coords.length/12));
+  for(let i=step;i<coords.length-1;i+=step){const p1=coords[i-1],p2=coords[i];const ang=Math.atan2(p2[1]-p1[1],p2[0]-p1[0])*180/Math.PI;L.marker(coords[i],{icon:L.divIcon({html:`<div style="transform:rotate(${ang}deg);font-size:14px;color:#e8a020;text-shadow:0 0 3px rgba(0,0,0,.6);line-height:1">➤</div>`,className:'',iconSize:[14,14],iconAnchor:[7,7]}),interactive:false}).addTo(map)}
+}
+
+// ════════════════════════════════════════════════════════
+// STOP LIST OVERVIEW
+// ════════════════════════════════════════════════════════
+function buildStopList(){
+  const c=document.getElementById('stop-list');c.innerHTML='';
+  const tot=STOPS.reduce((s,p)=>s+p.passengers.length,0);
+  document.getElementById('ov-title').textContent=`🗺 ${STOPS.length} paradas · ${tot} pasajeros`;
+  STOPS.forEach((s,i)=>{const r=document.createElement('div');r.className='stop-row';const ok=s.passengers.filter((_,pi)=>boarded[i+'-'+pi]).length;const done=ok===s.passengers.length&&s.passengers.length>0;r.innerHTML=`<div class="s-badge${done?' done':''}">${done?'✓':s.id}</div><div class="s-info"><div class="s-name">${s.name}</div><div class="s-addr" id="sa-${i}">📍 ${s.barrio||'Comodoro Rivadavia'}</div></div><div class="s-pax">${ok}/${s.passengers.length}</div>`;r.onclick=()=>{cur=i;startNav()};c.appendChild(r)});
+}
+
+// ════════════════════════════════════════════════════════
+// NAV MAP
+// ════════════════════════════════════════════════════════
+function startNav(){
+  // Si la parada inicial no tiene pasajeros, avanzar a la primera que sí tenga
+  if(!STOPS[cur]||!STOPS[cur].passengers||STOPS[cur].passengers.length===0){
+    const f=nextStopWithPax(cur);
+    if(f!==-1)cur=f;
+  }
+  showScreen('sc-nav');
+  document.getElementById('fin-overlay').classList.remove('show');
+  atStop=false;paxShown=false;spokenAt={};curStepIdx=0;
+  buildProg();refreshSIB();refreshPaxCol();
+  buildNavMap();startGPS();
+  setTimeout(()=>{
+    const s=STOPS[cur];
+    const addr=addrOf(cur);
+    say(`Iniciando recorrido. Dirigiéndose a ${s.name}${addr?'. '+addr:''}.`);
+    showFirstTurn();
+  },1000);
+}
+
+function buildNavMap(){
+  const el=document.getElementById('leaflet-nav');
+  const init=()=>{
+    if(mapNav){mapNav.remove();mapNav=null;vehicleMk=null}
+    mapNav=L.map(el,{zoomControl:false,attributionControl:false});
+    L.tileLayer('https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(mapNav);
+    if(routeCoords?.length>1)L.polyline(routeCoords,{color:'#1e2d3e',weight:6,opacity:.8}).addTo(mapNav);
+    STOPS.forEach((s,i)=>{
+      if(!s.lat||!s.lng)return;
+      const isCur=i===cur,isDone=i<cur;
+      const bg=isDone?'#22c55e':isCur?'#e8a020':'#1e2d3e';
+      const sz=isCur?50:34,fs=isCur?24:14;
+      const ic=L.divIcon({html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};color:#fff;display:flex;align-items:center;justify-content:center;font-family:Segoe UI,sans-serif;font-weight:900;font-size:${fs}px;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.5)">${isDone?'✓':s.id}</div>`,className:'',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
+      L.marker([s.lat,s.lng],{icon:ic}).addTo(mapNav).bindTooltip(s.name,{direction:'top'});
+    });
+    const _pts=STOPS.filter(s=>s.lat&&s.lng).map(s=>[s.lat,s.lng]);
+    if(_pts.length>1)mapNav.fitBounds(L.latLngBounds(_pts),{padding:[60,80]});
+    else if(STOPS[cur]?.lat)mapNav.setView([STOPS[cur].lat,STOPS[cur].lng],14);
+    mapNav.on('dragstart',()=>{following=false});
+    setTimeout(()=>mapNav.invalidateSize(),200);
+  };
+  if(el.offsetWidth>0){init()}else{const ro=new ResizeObserver(()=>{if(el.offsetWidth>0){ro.disconnect();init()}});ro.observe(el)}
+}
+
+function reCenter(){
+  following=true;
+  if(vehiclePos&&mapNav)mapNav.setView(vehiclePos,16);
+  else if(STOPS[cur]?.lat&&mapNav)mapNav.fitBounds(L.latLngBounds(routeCoords||[[STOPS[cur].lat,STOPS[cur].lng]]),{padding:[60,80]});
+}
+
+// ════════════════════════════════════════════════════════
+// GPS
+// ════════════════════════════════════════════════════════
+function startGPS(){
+  if(!('geolocation' in navigator))return;
+  if(watchId)navigator.geolocation.clearWatch(watchId);
+  watchId=navigator.geolocation.watchPosition(
+    pos=>{
+      vehiclePos=[pos.coords.latitude,pos.coords.longitude];
+      if(mapNav){
+        const ic=L.divIcon({html:`<div style="width:42px;height:42px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:22px">🚌</div>`,className:'',iconSize:[42,42],iconAnchor:[21,21]});
+        if(vehicleMk){vehicleMk.setLatLng(vehiclePos);vehicleMk.setIcon(ic)}
+        else{vehicleMk=L.marker(vehiclePos,{icon:ic,zIndexOffset:2000}).addTo(mapNav)}
+        if(following)mapNav.setView(vehiclePos,16);
+      }
+      if(cur<STOPS.length){
+        const s=STOPS[cur];
+        if(s.lat&&s.lng){const d=hav(vehiclePos[0],vehiclePos[1],s.lat,s.lng);updateDist(d);handleArrival(d)}
+      }
+      handleTurns();
+    },
+    err=>console.log('GPS:',err),
+    {enableHighAccuracy:true,maximumAge:2000,timeout:10000}
+  );
+}
+
+function hav(lat1,lon1,lat2,lon2){
+  const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function updateDist(d){
+  const dv=document.getElementById('sib-dv'),dl=document.getElementById('sib-dl');
+  if(d>=1000){dv.textContent=(d/1000).toFixed(1);dl.textContent='km'}
+  else{dv.textContent=Math.round(d);dl.textContent='metros'}
+}
+
+function handleArrival(dist){
+  if(!atStop&&dist<=ARRIVE_M){
+    atStop=true;paxShown=true;
+    document.getElementById('sib-c').classList.add('arr');
+    document.getElementById('sib-lbl').textContent='✅ LLEGASTE';
+    document.getElementById('pch-c').classList.add('arr');
+    const st=document.getElementById('pch-status');
+    st.className='pch-status arrived';
+    st.textContent='✅ EN PARADA — Confirmá los pasajeros que suben';
+    say(`Llegaste a la ${STOPS[cur].name}. ${STOPS[cur].passengers.length} pasajero${STOPS[cur].passengers.length!==1?'s':''} a subir.`);
+  }
+  if(atStop&&paxShown&&dist>DEPART_M){
+    atStop=false;paxShown=false;
+    advanceStop();
+  }
+}
+
+function handleTurns(){
+  if(!vehiclePos||!navSteps.length)return;
+  let minD=Infinity,minI=curStepIdx;
+  for(let i=curStepIdx;i<Math.min(curStepIdx+20,navSteps.length);i++){
+    const d=hav(vehiclePos[0],vehiclePos[1],navSteps[i].lat,navSteps[i].lng);
+    if(d<minD){minD=d;minI=i}
+    if(d>3000&&i>curStepIdx)break;
+  }
+  const st=navSteps[minI];if(!st)return;
+  const tb=document.getElementById('turn-bar');
+  document.getElementById('t-arrow').textContent=turnArrow(st.type,st.modifier);
+  document.getElementById('t-inst').textContent=st.inst;
+  document.getElementById('t-street').textContent=st.name||'';
+  if(minD<500){tb.classList.add('show');document.getElementById('t-dist').textContent=minD>=100?Math.round(minD/100)*100+'m':Math.round(minD)+'m'}
+  else{tb.classList.remove('show')}
+  if(!spokenAt[minI])spokenAt[minI]={};
+  if(minD<=400&&minD>150&&!spokenAt[minI]['400']){spokenAt[minI]['400']=true;say(`En ${Math.round(minD)} metros, ${st.inst}`)}
+  if(minD<=120&&minD>40&&!spokenAt[minI]['100']){spokenAt[minI]['100']=true;say(`En ${Math.round(minD)} metros, ${st.inst}`)}
+  if(minD<=40&&!spokenAt[minI]['now']){spokenAt[minI]['now']=true;say(st.inst);if(minI<navSteps.length-1)curStepIdx=minI+1}
+}
+
+function showFirstTurn(){
+  if(!navSteps.length)return;
+  const st=navSteps[Math.min(curStepIdx,navSteps.length-1)];if(!st)return;
+  document.getElementById('t-arrow').textContent=turnArrow(st.type,st.modifier);
+  document.getElementById('t-inst').textContent=st.inst;
+  document.getElementById('t-street').textContent=st.name||'';
+  document.getElementById('t-dist').textContent=st.distance>=1000?(st.distance/1000).toFixed(1)+' km':Math.round(st.distance)+' m';
+  document.getElementById('turn-bar').classList.add('show');
+  if(vozOn)setTimeout(()=>say(st.inst),1800);
+}
+
+// ════════════════════════════════════════════════════════
+// REFRESH SIB Y COLUMNA DE PAX
+// ════════════════════════════════════════════════════════
+function refreshSIB(){
+  if(cur>=STOPS.length)return;
+  const s=STOPS[cur];
+  const ci=document.getElementById('sib-c');ci.textContent=s.id;ci.className='sib-circle';
+  document.getElementById('sib-lbl').textContent='PRÓXIMA PARADA';
+  document.getElementById('sib-name').textContent=s.name;
+  let addr='';
+  if(addrs[cur])addr='📍 '+addrs[cur];
+  else if(s.barrio)addr='📍 '+s.barrio;
+  else if(s.lat&&s.lng)addr=`📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`;
+  else addr='📍 Cargando...';
+  document.getElementById('sib-addr').textContent=addr;
+  document.getElementById('sib-dv').textContent='—';
+  document.getElementById('sib-dl').textContent='sin GPS';
+  document.getElementById('hdr-sub').textContent=`Parada ${s.id} de ${STOPS.length} · ${s.passengers.length} pasajero${s.passengers.length!==1?'s':''}`;
+}
+
+function refreshPaxCol(){
+  if(cur>=STOPS.length)return;
+  const s=STOPS[cur];
+  const ci=document.getElementById('pch-c');ci.textContent=s.id;ci.className='pch-circle';
+  document.getElementById('pch-name').textContent=s.name;
+  let addr='';
+  if(addrs[cur])addr='📍 '+addrs[cur];
+  else if(s.barrio)addr='📍 '+s.barrio;
+  else addr='📍 Cargando...';
+  document.getElementById('pch-addr').textContent=addr;
+  const st=document.getElementById('pch-status');
+  st.className='pch-status driving';
+  st.textContent='🚌 En camino · Tocá cada pasajero al subir';
+  const bn=document.getElementById('btn-next');
+  bn.className=cur===STOPS.length-1?'btn-pnav btn-next fin':'btn-pnav btn-next';
+  bn.innerHTML=cur===STOPS.length-1?'✅ Finalizar':'Siguiente ▶';
+  renderPax();
+}
+
+function renderPax(){
+  if(cur>=STOPS.length)return;
+  const s=STOPS[cur];
+  const list=document.getElementById('pax-list');list.innerHTML='';
+  s.passengers.forEach((p,pi)=>{
+    const key=cur+'-'+pi,rec=boarded[key],ok=!!rec;
+    const d=document.createElement('div');d.className='pax-item'+(ok?' ok':'');d.id='px-'+key;
+    const empTag=p.empresa?`<span class="pax-emp">🏢 ${p.empresa}</span>`:'';
+    const barTag=p.barrio?`<span class="pax-bar">${p.barrio}</span>`:'';
+    d.innerHTML=`<div class="pax-chk">${ok?'✓':''}</div><div class="pax-av">${ok?'✓':p.name[0].toUpperCase()}</div><div class="pax-inf"><div class="pax-nm">${p.name}</div><div class="pax-dni">DNI ${p.dni}</div>${barTag}${empTag}</div>${ok?`<div class="pax-time">⏱ ${rec.time}</div>`:''}`;
+    d.onclick=()=>{
+      if(boarded[key])delete boarded[key];
+      else{const now=new Date();boarded[key]={time:now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),realStop:cur}}
+      const ok2=!!boarded[key];
+      d.classList.toggle('ok',ok2);
+      d.querySelector('.pax-chk').textContent=ok2?'✓':'';
+      d.querySelector('.pax-av').textContent=ok2?'✓':p.name[0].toUpperCase();
+      let te=d.querySelector('.pax-time');
+      if(ok2){if(!te){te=document.createElement('div');te.className='pax-time';d.appendChild(te)}te.textContent='⏱ '+boarded[key].time}
+      else if(te)te.remove();
+      updCnt();
+    };
+    list.appendChild(d);
+  });
+  updCnt();
+}
+
+function updCnt(){
+  const s=STOPS[cur];
+  const ok=s.passengers.filter((_,pi)=>boarded[cur+'-'+pi]).length;
+  document.getElementById('pch-cnt').textContent=ok+'/'+s.passengers.length;
+}
+
+// ════════════════════════════════════════════════════════
+// BUSCADOR GLOBAL — confirma a cualquier pasajero del recorrido
+// sin importar la parada. Bloquea a los no asignados.
+// ════════════════════════════════════════════════════════
+const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+function onSearch(q){
+  const box=document.getElementById('search-res');
+  const term=norm(q);
+  if(term.length<2){box.classList.remove('show');box.innerHTML='';return}
+  const digits=q.replace(/\D/g,'');
+  // Buscar en TODOS los pasajeros del recorrido
+  const hits=[];
+  STOPS.forEach((s,si)=>s.passengers.forEach((p,pi)=>{
+    const byName=norm(p.name).includes(term);
+    const byDni=digits.length>=3 && p.dni.replace(/\D/g,'').includes(digits);
+    if(byName||byDni)hits.push({si,pi,p,s});
+  }));
+  if(!hits.length){
+    box.innerHTML='<div class="sr-empty">⛔ No asignado a este recorrido</div>';
+    box.classList.add('show');return;
+  }
+  box.innerHTML=hits.slice(0,30).map(h=>{
+    const key=h.si+'-'+h.pi,taken=!!boarded[key];
+    return `<div class="sr-item${taken?' taken':''}" onclick="pickSearch(${h.si},${h.pi})">
+      <div class="sr-av">${h.p.name[0].toUpperCase()}</div>
+      <div class="sr-inf">
+        <div class="sr-nm">${h.p.name}</div>
+        <div class="sr-meta">DNI ${h.p.dni} · <span class="sr-stop">${h.s.name}</span>${h.p.empresa?' · 🏢 '+h.p.empresa:''}</div>
+      </div>
+      ${taken?'<div class="sr-ok">✓</div>':''}
+    </div>`;
+  }).join('');
+  box.classList.add('show');
+}
+
+function pickSearch(si,pi){
+  const key=si+'-'+pi;
+  const now=new Date();
+  if(!boarded[key]){
+    // realStop = la parada donde está el chofer AHORA (parada real de embarque)
+    boarded[key]={time:now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),realStop:cur};
+    const p=STOPS[si].passengers[pi];
+    say(`${p.name}, confirmado.`);
+  }
+  // Limpiar buscador
+  document.getElementById('pax-search-in').value='';
+  document.getElementById('search-res').classList.remove('show');
+  document.getElementById('search-res').innerHTML='';
+  // Si el pasajero es de la parada actual, refrescar la lista visible
+  if(si===cur)renderPax();
+  updCnt();
+}
+
+// ════════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ════════════════════════════════════════════════════════
+// Mejor dirección disponible PARA UNA PARADA CONCRETA (por índice)
+function addrOf(i){
+  if(addrs[i])return addrs[i];
+  const s=STOPS[i];
+  if(s&&s.barrio)return s.barrio;
+  return '';
+}
+// Devuelve el próximo índice con pasajeros (salta paradas vacías del KML). -1 si no hay más.
+function nextStopWithPax(from){
+  for(let i=from;i<STOPS.length;i++){
+    if(STOPS[i].passengers&&STOPS[i].passengers.length>0)return i;
+  }
+  return -1;
+}
+
+function advanceStop(){
+  const nxt=nextStopWithPax(cur+1);
+  if(nxt!==-1){
+    cur=nxt;atStop=false;paxShown=false;spokenAt={};curStepIdx=0;
+    buildProg();refreshSIB();refreshPaxCol();buildNavMap();
+    setTimeout(()=>{
+      const s=STOPS[cur];const addr=addrOf(cur);
+      say(`Dirigiéndose a ${s.name}${addr?'. '+addr:''}.`);
+      showFirstTurn();
+    },600);
+  } else {showFinished()}
+}
+function nextStop(){advanceStop()}
+function prevStop(){
+  // Vuelve a la parada anterior CON pasajeros
+  let p=-1;
+  for(let i=cur-1;i>=0;i--){if(STOPS[i].passengers&&STOPS[i].passengers.length>0){p=i;break}}
+  if(p!==-1){cur=p;atStop=false;paxShown=false;spokenAt={};curStepIdx=0;buildProg();refreshSIB();refreshPaxCol();buildNavMap()}
+}
+function goOv(){document.getElementById('fin-overlay').classList.remove('show');showScreen('sc-ov')}
+
+// ════════════════════════════════════════════════════════
+// PROGRESS
+// ════════════════════════════════════════════════════════
+function buildProg(){
+  const c=document.getElementById('prog-steps');c.innerHTML='';
+  STOPS.forEach((_,i)=>{const d=document.createElement('div');let cl='prog-step';if(i<cur)cl+=' done';if(i===cur)cl+=' cur';d.className=cl;c.appendChild(d)});
+  document.getElementById('prog-lbl').textContent=cur<STOPS.length?`PARADA ${cur+1} DE ${STOPS.length} · Faltan ${STOPS.length-cur} parada${STOPS.length-cur!==1?'s':''}`:' RECORRIDO FINALIZADO';
+}
+
+// ════════════════════════════════════════════════════════
+// FINALIZACIÓN + GUARDADO AUTOMÁTICO SUPABASE
+// ════════════════════════════════════════════════════════
+function buildRows(){
+  const fecha=new Date().toISOString().slice(0,10);
+  const rows=[];
+  STOPS.forEach((s,si)=>{
+    s.passengers.forEach((p,pi)=>{
+      const rec=boarded[String(si)+'-'+String(pi)];
+      const paradaAsignada=s.name;
+      const paradaReal=rec&&rec.realStop!=null&&STOPS[rec.realStop]?STOPS[rec.realStop].name:'';
+      rows.push({
+        recorrido:ROUTE,
+        parada:paradaReal||paradaAsignada,
+        parada_asignada:paradaAsignada,
+        parada_real:rec?paradaReal:'',
+        barrio:s.barrio||p.barrio||'',
+        empresa:p.empresa||'',
+        nombre_pasajero:p.name,
+        dni:p.dni,
+        estado:rec?'CONFIRMADO':'AUSENTE',
+        fecha:fecha,
+        hora_embarque:rec?rec.time:''
+      });
+    });
+  });
+  return rows;
+}
+
+async function saveToSupabase(rows){
+  const r=await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?on_conflict=dni,fecha,recorrido`,{
+    method:'POST',
     headers:{
       'Content-Type':'application/json',
       'apikey':SB_KEY,
       'Authorization':'Bearer '+SB_KEY,
-      'Prefer':'return=minimal'
+      'Prefer':'return=minimal,resolution=merge-duplicates'
     },
-    body:JSON.stringify(body)
+    body:JSON.stringify(rows)
   });
-  if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' — '+t)}
+  if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' '+t)}
+  return true;
 }
 
-async function marcarEmbarcado(id){
-  if(!ADMIN)return;
-  if(!confirm('¿Marcar a este pasajero como EMBARCADO (confirmado)?'))return;
+function getPending(){try{return JSON.parse(localStorage.getItem(PENDING_KEY)||'[]')}catch(_){return[]}}
+function setPending(arr){try{localStorage.setItem(PENDING_KEY,JSON.stringify(arr))}catch(_){}}
+function addPending(rows){const p=getPending();p.push({ts:Date.now(),rows});setPending(p)}
+
+// Reintenta subir lo que quedó pendiente por falta de señal
+async function flushPending(){
+  let p=getPending();
+  if(!p.length)return;
+  const keep=[];
+  for(const batch of p){
+    try{await saveToSupabase(batch.rows)}catch(e){keep.push(batch)}
+  }
+  setPending(keep);
+}
+
+function setSync(state,msg){
+  const el=document.getElementById('fin-sync');
+  el.className='fin-sync '+state;
+  el.textContent=msg;
+}
+
+async function showFinished(){
+  if(watchId){navigator.geolocation.clearWatch(watchId);watchId=null}
+  let tot=0,ok=0;
+  STOPS.forEach((s,si)=>s.passengers.forEach((_,pi)=>{tot++;if(boarded[si+'-'+pi])ok++}));
+  document.getElementById('fin-stat').textContent=ok+' / '+tot;
+  const w=document.getElementById('fin-warn');
+  if(ok<tot){w.style.display='block';w.textContent=`⚠️ ${tot-ok} pasajero${tot-ok!==1?'s':''} sin confirmar`}else{w.style.display='none'}
+  document.getElementById('fin-overlay').classList.add('show');
+  say(`Recorrido finalizado. ${ok} pasajeros confirmados.`);
+
+  // Guardado automático en Supabase
+  setSync('pending','⏳ Guardando embarque automáticamente...');
+  const rows=buildRows();
   try{
-    await patchEstado(id,'CONFIRMADO');
-    // Actualizar en memoria y refrescar
-    const rec=DATA_ALL.find(x=>x.id===id);if(rec){rec.estado='CONFIRMADO';rec.hora_embarque=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}
-    render();
-  }catch(e){alert('No se pudo guardar el cambio: '+e.message)}
+    await saveToSupabase(rows);
+    await flushPending(); // aprovecha la señal para subir lo viejo
+    setSync('ok','✅ Embarque guardado automáticamente');
+  }catch(e){
+    addPending(rows); // guarda local y reintenta después
+    setSync('error','⏳ Sin señal — se guardará al recuperar conexión');
+    // reintento cuando vuelva la conexión
+    window.addEventListener('online',()=>{flushPending().then(()=>{
+      if(!getPending().length)setSync('ok','✅ Embarque guardado automáticamente');
+    })},{once:true});
+  }
 }
 
-async function marcarAusente(id){
-  if(!ADMIN)return;
-  if(!confirm('¿Pasar a este pasajero a AUSENTE?'))return;
-  try{
-    await patchEstado(id,'AUSENTE');
-    const rec=DATA_ALL.find(x=>x.id===id);if(rec){rec.estado='AUSENTE';rec.hora_embarque=''}
-    render();
-  }catch(e){alert('No se pudo guardar el cambio: '+e.message)}
-}
-
-function exportXlsx(){
-  if(!DATA.length){alert('No hay datos para exportar.');return}
-  const aoa=[['Fecha','Recorrido','Parada','Empresa','Pasajero','DNI/Legajo','Estado','Hora Embarque']];
-  DATA.forEach(r=>aoa.push([r.fecha,r.recorrido,r.parada||'',r.empresa||'',r.nombre_pasajero||'',r.dni||'',r.estado||'',r.hora_embarque||'']));
+// ════════════════════════════════════════════════════════
+// EXCEL (respaldo manual)
+// ════════════════════════════════════════════════════════
+function dlXlsx(){
+  const fecha=new Date().toLocaleDateString('es-AR');
+  const cr=[['Línea','Parada','Barrio','Empresa','Nombre Pasajero','DNI','Estado','Fecha','Hora Embarque']];
+  const pr=[['Línea','Parada','Barrio','Empresa','Nombre Pasajero','DNI','Estado','Fecha']];
+  STOPS.forEach((s,si)=>{
+    s.passengers.forEach((p,pi)=>{
+      const key=String(si)+'-'+String(pi),rec=boarded[key];
+      const base=[ROUTE,s.name,s.barrio||p.barrio||'',p.empresa||'',p.name,p.dni];
+      if(rec)cr.push([...base,'CONFIRMADO',fecha,rec.time]);
+      else pr.push([...base,'AUSENTE',fecha]);
+    });
+  });
   const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:12},{wch:26},{wch:12},{wch:24},{wch:30},{wch:16},{wch:14},{wch:14}];
-  XLSX.utils.book_append_sheet(wb,ws,'Embarques');
-  XLSX.writeFile(wb,'Embarques_PETROSAR_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  const ws1=XLSX.utils.aoa_to_sheet(cr);ws1['!cols']=[{wch:28},{wch:12},{wch:26},{wch:24},{wch:32},{wch:16},{wch:14},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Confirmados');
+  if(pr.length>1){const ws2=XLSX.utils.aoa_to_sheet(pr);ws2['!cols']=[{wch:28},{wch:12},{wch:26},{wch:24},{wch:32},{wch:16},{wch:14},{wch:12}];XLSX.utils.book_append_sheet(wb,ws2,'Ausentes')}
+  XLSX.writeFile(wb,'Embarque_'+ROUTE.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 
-const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-function fmtFecha(f){if(!f)return '';const p=String(f).slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:f}
-
-// Carga inicial
-loadData();
+window.addEventListener('resize',()=>setTimeout(()=>{if(mapOv)mapOv.invalidateSize();if(mapNav)mapNav.invalidateSize()},300));
+// Cargar la lista de recorridos al abrir la app
+loadRecList();
+window.addEventListener('online',()=>flushPending());
 </script>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});</script>
 </body>
 </html>
