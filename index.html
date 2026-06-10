@@ -139,6 +139,7 @@ body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);fon
     </div>
     <button class="ps-btn" onclick="loadData()">🔄 Actualizar</button>
     <button class="ps-btn ps-btn-accent" onclick="exportXlsx()">📥 Exportar Excel</button>
+    <button class="ps-btn" id="btn-agrupar" onclick="toggleAgrupar()">🔗 Agrupar alimentadores: OFF</button>
     <button class="ps-btn" id="btn-admin" onclick="toggleAdmin()">🔒 Modo edición</button>
   </div>
 
@@ -153,6 +154,7 @@ body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);fon
     <button class="ps-tab" data-pane="empresa">🏢 Por empresa</button>
     <button class="ps-tab" data-pane="ausentes">⚠️ Ausentes</button>
     <button class="ps-tab" data-pane="detalle">📋 Detalle</button>
+    <button class="ps-tab" data-pane="recorridos" id="tab-recorridos" style="display:none">🗺️ Recorridos</button>
   </div>
 
   <div class="ps-content-card">
@@ -160,6 +162,7 @@ body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);fon
     <div class="ps-pane" id="pane-empresa"></div>
     <div class="ps-pane" id="pane-ausentes"></div>
     <div class="ps-pane" id="pane-detalle"></div>
+    <div class="ps-pane" id="pane-recorridos"></div>
   </div>
 
 </main>
@@ -174,6 +177,21 @@ let DATA_ALL=[]; // lo que vino de Supabase con filtros server-side
 let DATA=[]; // registros visibles tras búsqueda por apellido/DNI
 let ADMIN=false; // modo edición activado con clave
 const ADMIN_PASS='Petrosar103!';
+let AGRUPAR=false; // agrupar alimentadores (06A,06B) bajo el principal (06)
+
+// Recorrido principal: quita una letra final pegada al número. 'CD-COMODORO 06A' -> 'CD-COMODORO 06'
+function recPrincipal(nombre){
+  if(!nombre)return nombre;
+  return String(nombre).replace(/(\d+)\s*[A-Za-z]\s*$/,'$1').trim();
+}
+// Nombre a mostrar según el interruptor
+function recView(nombre){return AGRUPAR?recPrincipal(nombre):nombre}
+
+function toggleAgrupar(){
+  AGRUPAR=!AGRUPAR;
+  document.getElementById('btn-agrupar').textContent='🔗 Agrupar alimentadores: '+(AGRUPAR?'ON':'OFF');
+  render();
+}
 
 // ── Tabs ──
 document.querySelectorAll('.ps-tab').forEach(t=>{
@@ -258,7 +276,7 @@ function renderKpis(){
   const conf=DATA.filter(r=>r.estado==='CONFIRMADO').length;
   const aus=tot-conf;
   const pct=tot?Math.round(conf/tot*100):0;
-  const recs=new Set(DATA.map(r=>r.recorrido)).size;
+  const recs=new Set(DATA.map(r=>recView(r.recorrido))).size;
   document.getElementById('kpis').innerHTML=`
     <div class="ps-card"><div class="ps-card-icon ps-icon-blue">🚌</div><div class="ps-card-label">Recorridos</div><div class="ps-card-value">${recs}</div><div class="ps-card-sub">con embarques</div></div>
     <div class="ps-card"><div class="ps-card-icon ps-icon-purple">👥</div><div class="ps-card-label">Pasajeros</div><div class="ps-card-value">${tot}</div><div class="ps-card-sub">total registrados</div></div>
@@ -271,13 +289,15 @@ function emptyState(icon,txt){return `<div class="ps-state"><div class="ps-state
 function renderResumen(){
   const g={};
   DATA.forEach(r=>{
-    const k=r.fecha+'||'+r.recorrido;
-    if(!g[k])g[k]={fecha:r.fecha,recorrido:r.recorrido,tot:0,conf:0};
+    const rv=recView(r.recorrido);
+    const k=r.fecha+'||'+rv;
+    if(!g[k])g[k]={fecha:r.fecha,recorrido:rv,tot:0,conf:0};
     g[k].tot++;if(r.estado==='CONFIRMADO')g[k].conf++;
   });
   const rows=Object.values(g).sort((a,b)=>b.fecha.localeCompare(a.fecha)||a.recorrido.localeCompare(b.recorrido));
   if(!rows.length){document.getElementById('pane-resumen').innerHTML=emptyState('📭','No hay registros para los filtros seleccionados.');return}
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Pasajeros</th><th>Confirmados</th><th>Ausentes</th><th style="width:160px">% Confirmado</th></tr></thead><tbody>`;
+  const nota=AGRUPAR?'<div style="font-size:13px;color:var(--ps-muted);margin-bottom:10px">🔗 Los alimentadores (06A, 06B...) están sumados al recorrido principal (06).</div>':'';
+  let h=nota+`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Pasajeros</th><th>Confirmados</th><th>Ausentes</th><th style="width:160px">% Confirmado</th></tr></thead><tbody>`;
   rows.forEach(r=>{
     const pct=r.tot?Math.round(r.conf/r.tot*100):0;
     h+=`<tr><td>${fmtFecha(r.fecha)}</td><td><b>${esc(r.recorrido)}</b></td><td>${r.tot}</td><td>${r.conf}</td><td>${r.tot-r.conf}</td><td><div class="ps-bar-cell"><div class="ps-bar-track"><div class="ps-bar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div></td></tr>`;
@@ -340,6 +360,7 @@ function toggleAdmin(){
   if(ADMIN){
     ADMIN=false;
     document.getElementById('btn-admin').textContent='🔒 Modo edición';
+    document.getElementById('tab-recorridos').style.display='none';
     render();
     return;
   }
@@ -348,7 +369,9 @@ function toggleAdmin(){
   if(p===ADMIN_PASS){
     ADMIN=true;
     document.getElementById('btn-admin').textContent='🔓 Edición activa';
+    document.getElementById('tab-recorridos').style.display='';
     render();
+    loadRecorridos();
   }else{
     alert('Contraseña incorrecta.');
   }
@@ -394,6 +417,109 @@ async function marcarAusente(id){
     const rec=DATA_ALL.find(x=>x.id===id);if(rec){rec.estado='AUSENTE';rec.hora_embarque=''}
     render();
   }catch(e){alert('No se pudo guardar el cambio: '+e.message)}
+}
+
+// ════════════════════════════════════════════════════════
+// GESTIÓN DE RECORRIDOS (solo admin)
+// ════════════════════════════════════════════════════════
+let RECS=[];
+let pendingKml=null, pendingName='';
+
+async function loadRecorridos(){
+  const pane=document.getElementById('pane-recorridos');
+  pane.innerHTML='<div class="ps-loader"></div>';
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/recorridos?select=id,numero,nombre,actualizado_en&order=numero.asc`,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    });
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    RECS=await r.json();
+    renderRecorridos();
+  }catch(e){pane.innerHTML='<div class="ps-err">No se pudieron cargar los recorridos. '+e.message+'</div>'}
+}
+
+function renderRecorridos(){
+  const pane=document.getElementById('pane-recorridos');
+  let h=`
+  <div style="background:#f7fafc;border:2px dashed var(--ps-accent);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="font-weight:700;font-size:16px;color:var(--ps-header-bg);margin-bottom:12px">➕ Cargar / actualizar un recorrido</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:140px">
+        <label class="ps-label">Número de recorrido</label>
+        <input type="text" class="ps-input" id="rec-num" placeholder="Ej: 01">
+      </div>
+      <div style="flex:2;min-width:180px">
+        <label class="ps-label">Nombre (opcional)</label>
+        <input type="text" class="ps-input" id="rec-nom" placeholder="Ej: CD Comodoro Rivadavia 01">
+      </div>
+      <div style="flex:2;min-width:200px">
+        <label class="ps-label">Archivo KML</label>
+        <input type="file" class="ps-input" id="rec-file" accept=".kml" onchange="onRecFile(event)">
+      </div>
+      <button class="ps-btn ps-btn-accent" onclick="guardarRecorrido()">💾 Guardar</button>
+    </div>
+    <div id="rec-msg" style="margin-top:10px;font-weight:600;font-size:14px"></div>
+  </div>`;
+  if(!RECS.length){
+    h+=emptyState('🗺️','Todavía no hay recorridos cargados. Subí el primero arriba.');
+  }else{
+    h+=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Número</th><th>Nombre</th><th>Última actualización</th><th>Acción</th></tr></thead><tbody>`;
+    RECS.forEach(r=>{
+      const fch=r.actualizado_en?new Date(r.actualizado_en).toLocaleString('es-AR'):'';
+      h+=`<tr><td><b>${esc(r.numero)}</b></td><td>${esc(r.nombre||'')}</td><td>${fch}</td>
+        <td><button class="ps-btn" style="padding:6px 12px;color:var(--ps-red)" onclick="borrarRecorrido(${r.id},'${esc(r.numero)}')">🗑 Eliminar</button></td></tr>`;
+    });
+    h+='</tbody></table></div>';
+  }
+  pane.innerHTML=h;
+}
+
+function onRecFile(e){
+  const f=e.target.files[0];
+  if(!f)return;
+  if(!f.name.toLowerCase().endsWith('.kml')){document.getElementById('rec-msg').innerHTML='<span style="color:var(--ps-red)">⚠️ Debe ser un archivo .kml</span>';return}
+  const reader=new FileReader();
+  reader.onload=ev=>{pendingKml=ev.target.result;pendingName=f.name;
+    document.getElementById('rec-msg').innerHTML='<span style="color:var(--ps-green)">✓ Archivo leído: '+esc(f.name)+'</span>';
+  };
+  reader.readAsText(f,'UTF-8');
+}
+
+async function guardarRecorrido(){
+  const num=document.getElementById('rec-num').value.trim();
+  const nom=document.getElementById('rec-nom').value.trim();
+  const msg=document.getElementById('rec-msg');
+  if(!num){msg.innerHTML='<span style="color:var(--ps-red)">⚠️ Poné el número de recorrido</span>';return}
+  if(!pendingKml){msg.innerHTML='<span style="color:var(--ps-red)">⚠️ Seleccioná el archivo KML</span>';return}
+  msg.innerHTML='Guardando...';
+  const row={numero:num,nombre:nom,kml:pendingKml,actualizado_en:new Date().toISOString()};
+  try{
+    // upsert por numero (si existe, lo reemplaza)
+    const r=await fetch(`${SB_URL}/rest/v1/recorridos?on_conflict=numero`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'return=minimal,resolution=merge-duplicates'},
+      body:JSON.stringify(row)
+    });
+    if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' — '+t)}
+    msg.innerHTML='<span style="color:var(--ps-green)">✅ Recorrido '+esc(num)+' guardado</span>';
+    pendingKml=null;pendingName='';
+    document.getElementById('rec-num').value='';
+    document.getElementById('rec-nom').value='';
+    document.getElementById('rec-file').value='';
+    loadRecorridos();
+  }catch(e){msg.innerHTML='<span style="color:var(--ps-red)">No se pudo guardar: '+e.message+'</span>'}
+}
+
+async function borrarRecorrido(id,num){
+  if(!confirm('¿Eliminar el recorrido '+num+'? Esta acción no se puede deshacer.'))return;
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/recorridos?id=eq.${id}`,{
+      method:'DELETE',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'return=minimal'}
+    });
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    loadRecorridos();
+  }catch(e){alert('No se pudo eliminar: '+e.message)}
 }
 
 function exportXlsx(){
