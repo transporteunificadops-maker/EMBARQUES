@@ -432,11 +432,34 @@ function renderAusentes(){
   document.getElementById('pane-ausentes').innerHTML=h;
 }
 
+let FILTRO_INTERNO=''; // filtro local de la sección Detalle
+function setFiltroInterno(v){FILTRO_INTERNO=v;renderDetalle()}
+
 function renderDetalle(){
   if(!DATA.length){document.getElementById('pane-detalle').innerHTML=emptyState('📭','No hay registros.');return}
+  // Internos presentes en los datos actuales (para el selector)
+  const internos=[...new Set(DATA.map(r=>r.interno).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+  // Si el interno filtrado ya no está en los datos actuales, limpiar el filtro
+  if(FILTRO_INTERNO&&!internos.includes(FILTRO_INTERNO))FILTRO_INTERNO='';
+  const opts=['<option value="">Todos los internos</option>']
+    .concat(internos.map(i=>`<option value="${esc(i)}"${FILTRO_INTERNO===i?' selected':''}>Interno ${esc(i)}</option>`))
+    .join('');
+  // Datos filtrados por interno (solo afecta esta tabla)
+  const filas=FILTRO_INTERNO?DATA.filter(r=>String(r.interno||'')===FILTRO_INTERNO):DATA;
+
   const accCol=ADMIN?'<th>Acción</th>':'';
-  let h=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Interno</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th><th>Estado</th><th>Hora</th>${accCol}</tr></thead><tbody>`;
-  DATA.forEach(r=>{
+  let h=`<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <label class="ps-label" style="margin:0">Filtrar por interno:</label>
+    <select class="ps-select" style="max-width:220px" onchange="setFiltroInterno(this.value)">${opts}</select>
+    <span style="color:var(--ps-muted);font-size:13px">${filas.length} registro${filas.length!==1?'s':''}</span>
+  </div>`;
+  if(!filas.length){
+    h+=emptyState('📭','No hay registros para el interno seleccionado.');
+    document.getElementById('pane-detalle').innerHTML=h;
+    return;
+  }
+  h+=`<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Fecha</th><th>Recorrido</th><th>Interno</th><th>Parada</th><th>Empresa</th><th>Pasajero</th><th>DNI/Legajo</th><th>Estado</th><th>Hora</th>${accCol}</tr></thead><tbody>`;
+  filas.forEach(r=>{
     const badge=r.estado==='CONFIRMADO'?'<span class="ps-badge ps-badge-ok">CONFIRMADO</span>':'<span class="ps-badge ps-badge-danger">AUSENTE</span>';
     let acc='';
     if(ADMIN){
