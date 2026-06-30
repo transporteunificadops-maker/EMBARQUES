@@ -249,24 +249,37 @@ document.querySelectorAll('.ps-tab').forEach(t=>{
 function msg(html,err){document.getElementById('msg').innerHTML=html?`<div class="${err?'ps-err':''}">${html}</div>`:''}
 
 async function sbFetch(query){
-  const r=await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?${query}`,{
-    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
-  });
-  if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' — '+t)}
-  return r.json();
+  // Supabase devuelve máximo 1000 filas por request. Paginamos con Range hasta traer todo.
+  const PAGE=1000;
+  let from=0, all=[];
+  while(true){
+    const r=await fetch(`${SB_URL}/rest/v1/${SB_TABLE}?${query}`,{
+      headers:{
+        'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,
+        'Range-Unit':'items','Range':`${from}-${from+PAGE-1}`
+      }
+    });
+    if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' — '+t)}
+    const chunk=await r.json();
+    all=all.concat(chunk);
+    if(chunk.length<PAGE)break;     // última tanda
+    from+=PAGE;
+    if(from>200000)break;           // tope de seguridad
+  }
+  return all;
 }
 
 async function loadData(){
   msg('<div class="ps-loader"></div>');
   try{
-    // Si no hay registros aún en RAW, traer todo una vez para poblar selects
+    // Si no hay registros aún en RAW, traer solo recorrido+empresa (liviano) para poblar selects
     if(!RAW.length){
-      RAW=await sbFetch('select=*&order=fecha.desc&limit=10000');
+      RAW=await sbFetch('select=recorrido,empresa&order=fecha.desc');
       populateSelects();
     }
     await loadButacas();
-    // Construir filtro server-side
-    const params=['select=*','order=fecha.desc,recorrido.asc,parada.asc','limit=10000'];
+    // Construir filtro server-side (Supabase filtra; sbFetch pagina hasta traer todo)
+    const params=['select=*','order=fecha.desc,recorrido.asc,parada.asc'];
     const d=document.getElementById('f-desde').value;
     const h=document.getElementById('f-hasta').value;
     const rec=document.getElementById('f-recorrido').value;
@@ -710,7 +723,12 @@ function exportXlsx(){
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function fmtFecha(f){if(!f)return '';const p=String(f).slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:f}
 
-// Carga inicial
+// Carga inicial — por defecto muestra el día de hoy
+(function(){
+  const hoy=new Date().toLocaleDateString('en-CA'); // formato YYYY-MM-DD en hora local
+  document.getElementById('f-desde').value=hoy;
+  document.getElementById('f-hasta').value=hoy;
+})();
 loadData();
 </script>
 </body>
