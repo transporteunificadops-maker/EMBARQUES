@@ -236,6 +236,7 @@ function esPrincipalNombre(nombre){
 function toggleAgrupar(){
   AGRUPAR=!AGRUPAR;
   document.getElementById('btn-agrupar').textContent='🔗 Agrupar alimentadores: '+(AGRUPAR?'ON':'OFF');
+  _evolCargada=false; // la evolución depende de la agrupación, recargar
   render();
 }
 
@@ -327,10 +328,12 @@ function render(){
   renderKpis();
   renderResumen();
   renderEmpresa();
-  renderEvolucion();
   renderAusentes();
   renderDetalle();
+  // La pestaña Evolución se carga sola al construirse (no depende del filtro).
+  if(!_evolCargada){renderEvolucion();_evolCargada=true;}
 }
+let _evolCargada=false;
 
 // ════════════════════════════════════════════════════════
 // PESTAÑA EVOLUCIÓN — ocupación (confirmados / butacas)
@@ -339,6 +342,15 @@ function render(){
 let _chartEvol=null;
 const MESES_AR=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const PALETA_EVOL=['#2a78d6','#1baf7a','#eda100','#008300','#4a3aa7','#e34948','#e87ba4','#eb6834'];
+
+// Recorridos que NO se muestran en la evolución (unificados y el 21)
+function excluirDeEvolucion(nombre){
+  const n=String(nombre||'').toUpperCase();
+  if(n.includes('UNIFICADO'))return true;
+  // recorrido 21 (con o sin ceros/espacios): "...21" al final
+  if(/\b0*21\b\s*$/.test(n))return true;
+  return false;
+}
 
 function ocupacionColor(v){
   if(v==null)return '#f7fafc';
@@ -352,109 +364,123 @@ function ocupacionTxt(v){return v!=null&&v>=85?'#04342C':'#412402'}
 
 function renderEvolucion(){
   const pane=document.getElementById('pane-evolucion');
-  // Agrupar DATA (período de los filtros) por fecha y recorrido (aplicando agrupación de alimentadores)
-  // Ocupación diaria por recorrido = confirmados / butacas del recorrido
-  const porFechaRec={}; // fecha -> recView -> {conf}
-  const fechasSet=new Set();
-  const recsSet=new Set();
-  DATA.forEach(r=>{
-    const rv=recView(r.recorrido);
-    const f=String(r.fecha).slice(0,10);
-    fechasSet.add(f);recsSet.add(rv);
-    porFechaRec[f]=porFechaRec[f]||{};
-    porFechaRec[f][rv]=porFechaRec[f][rv]||{conf:0};
-    if(r.estado==='CONFIRMADO')porFechaRec[f][rv].conf++;
-  });
-  const fechas=[...fechasSet].sort();
-  const recs=[...recsSet].sort(cmpRecAsc);
-
-  if(!fechas.length){
-    pane.innerHTML=emptyState('📈','No hay datos para el período seleccionado.');
-    return;
-  }
-
-  // ── Series para el gráfico de líneas: % ocupación por recorrido a lo largo de las fechas ──
-  const series=recs.map((rec,i)=>{
-    const but=butacasDe(rec);
-    const data=fechas.map(f=>{
-      const cell=porFechaRec[f]&&porFechaRec[f][rec];
-      if(!cell||but==null||but<=0)return null;
-      return Math.round(cell.conf/but*100);
-    });
-    return {rec,data,color:PALETA_EVOL[i%PALETA_EVOL.length],but};
-  }).filter(s=>s.but!=null&&s.but>0); // solo recorridos con butacas cargadas
-
-  // ── Tarjetas: promedio del período, mayor suba, mayor caída ──
-  let sumaPct=0,cntPct=0;
-  const tendencias=[]; // {rec, delta}
-  series.forEach(s=>{
-    const validos=s.data.filter(v=>v!=null);
-    validos.forEach(v=>{sumaPct+=v;cntPct++});
-    if(validos.length>=2){
-      tendencias.push({rec:s.rec,delta:validos[validos.length-1]-validos[0]});
-    }
-  });
-  const promedio=cntPct?Math.round(sumaPct/cntPct):null;
-  tendencias.sort((a,b)=>b.delta-a.delta);
-  const suba=tendencias.length?tendencias[0]:null;
-  const caida=tendencias.length?tendencias[tendencias.length-1]:null;
-
-  let h='';
-  // Tarjetas
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px">';
-  h+=`<div class="ps-card"><div class="ps-card-label">Ocupación promedio</div><div class="ps-card-value">${promedio!=null?promedio+'%':'—'}</div><div class="ps-card-sub">del período</div></div>`;
-  if(suba&&suba.delta>0){
-    h+=`<div class="ps-card"><div class="ps-card-label">Mayor suba</div><div class="ps-card-value" style="font-size:18px;color:#0F6E56">${esc(suba.rec)}</div><div class="ps-card-sub" style="color:#0F6E56">+${suba.delta} pts</div></div>`;
-  }
-  if(caida&&caida.delta<0){
-    h+=`<div class="ps-card"><div class="ps-card-label">Mayor caída</div><div class="ps-card-value" style="font-size:18px;color:#A32D2D">${esc(caida.rec)}</div><div class="ps-card-sub" style="color:#A32D2D">${caida.delta} pts</div></div>`;
-  }
-  h+='</div>';
-
-  // Gráfico de líneas
-  if(series.length){
-    h+='<div style="font-weight:600;color:var(--ps-header-bg);margin-bottom:8px">Evolución en el período (día a día)</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-size:12px;color:var(--ps-muted)">';
-    series.forEach(s=>{h+=`<span style="display:flex;align-items:center;gap:5px"><span style="width:11px;height:11px;border-radius:2px;background:${s.color}"></span>${esc(s.rec)}</span>`;});
-    h+='</div>';
-    h+='<div style="position:relative;width:100%;height:300px;margin-bottom:28px"><canvas id="canvas-evol" role="img" aria-label="Evolución de ocupación por recorrido"></canvas></div>';
-  }else{
-    h+='<div style="color:var(--ps-muted);margin-bottom:24px">No hay recorridos con butacas cargadas en el período. Cargá las butacas en la pestaña Por recorrido para ver la evolución.</div>';
-  }
-
-  // Placeholder del mapa de calor anual (se llena async)
-  h+='<div style="font-weight:600;color:var(--ps-header-bg);margin-bottom:8px">Evolución en el año (mes a mes)</div>';
-  h+='<div id="heatmap-anual"><div class="ps-loader"></div></div>';
-
-  pane.innerHTML=h;
-
-  // Dibujar el gráfico de líneas
-  if(series.length){
-    if(_chartEvol){_chartEvol.destroy();_chartEvol=null}
-    const ctx=document.getElementById('canvas-evol');
-    if(ctx){
-      _chartEvol=new Chart(ctx,{
-        type:'line',
-        data:{
-          labels:fechas.map(f=>{const p=f.split('-');return p[2]+'/'+p[1]}),
-          datasets:series.map(s=>({
-            label:s.rec,data:s.data,borderColor:s.color,backgroundColor:s.color,
-            borderWidth:2,tension:.3,pointRadius:2,spanGaps:true
-          }))
-        },
-        options:{responsive:true,maintainAspectRatio:false,
-          plugins:{legend:{display:false}},
-          scales:{
-            y:{min:0,max:110,ticks:{callback:v=>v+'%',color:'#898781'},grid:{color:'#e1e0d9'}},
-            x:{ticks:{color:'#898781',maxRotation:45,autoSkip:true},grid:{display:false}}
-          }
-        }
-      });
-    }
-  }
-
-  // Cargar el mapa de calor anual (consulta aparte, todo el año)
+  // Estructura fija: tarjetas + gráfico de mes + heatmap anual. Los datos se cargan async
+  // (el gráfico de líneas usa el MES EN CURSO, no el filtro de arriba).
+  pane.innerHTML=
+    '<div id="evol-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px"></div>'+
+    '<div style="font-weight:600;color:var(--ps-header-bg);margin-bottom:12px">Evolución en el mes en curso (día a día)</div>'+
+    '<div id="evol-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:28px"><div class="ps-loader"></div></div>'+
+    '<div style="font-weight:600;color:var(--ps-header-bg);margin-bottom:8px">Evolución en el año (mes a mes)</div>'+
+    '<div id="heatmap-anual"><div class="ps-loader"></div></div>';
+  cargarGraficoMes();
   cargarHeatmapAnual();
+}
+
+async function cargarGraficoMes(){
+  const cards=document.getElementById('evol-cards');
+  const grid=document.getElementById('evol-grid');
+  try{
+    const hoy=new Date();
+    const anio=hoy.getFullYear(), mes=hoy.getMonth(); // mes 0-11
+    const diasEnMes=new Date(anio,mes+1,0).getDate();
+    const primerDia=`${anio}-${String(mes+1).padStart(2,'0')}-01`;
+    const ultDia=`${anio}-${String(mes+1).padStart(2,'0')}-${String(diasEnMes).padStart(2,'0')}`;
+    const q=`select=fecha,recorrido,estado&fecha=gte.${primerDia}&fecha=lte.${ultDia}&estado=eq.CONFIRMADO`;
+    const filas=await sbFetch(q);
+
+    // Agrupar por fecha y recorrido (aplicando agrupación de alimentadores, excluyendo unificados y 21)
+    const porFechaRec={},recsSet=new Set();
+    filas.forEach(r=>{
+      if(excluirDeEvolucion(r.recorrido))return;
+      const rv=recView(r.recorrido);
+      if(excluirDeEvolucion(rv))return;
+      const f=String(r.fecha).slice(0,10);
+      recsSet.add(rv);
+      porFechaRec[f]=porFechaRec[f]||{};
+      porFechaRec[f][rv]=porFechaRec[f][rv]||{conf:0};
+      porFechaRec[f][rv].conf++;
+    });
+    const recs=[...recsSet].sort(cmpRecAsc);
+
+    // Etiquetas: todos los días del mes (1..diasEnMes)
+    const labels=[];for(let d=1;d<=diasEnMes;d++)labels.push(String(d).padStart(2,'0'));
+    const fechasISO=labels.map(d=>`${anio}-${String(mes+1).padStart(2,'0')}-${d}`);
+
+    if(!recs.length){
+      cards.innerHTML='';
+      grid.innerHTML='<div style="color:var(--ps-muted)">No hay datos en el mes en curso todavía.</div>';
+      return;
+    }
+
+    // Series por recorrido con butacas cargadas
+    const series=recs.map((rec,i)=>{
+      const but=butacasDe(rec);
+      const data=fechasISO.map(f=>{
+        const cell=porFechaRec[f]&&porFechaRec[f][rec];
+        if(!cell||but==null||but<=0)return null;
+        return Math.round(cell.conf/but*100);
+      });
+      return {rec,data,color:PALETA_EVOL[i%PALETA_EVOL.length],but};
+    }).filter(s=>s.but!=null&&s.but>0);
+
+    // ── Tarjetas resumen ──
+    let sumaPct=0,cntPct=0;const tendencias=[];
+    series.forEach(s=>{
+      const validos=s.data.filter(v=>v!=null);
+      validos.forEach(v=>{sumaPct+=v;cntPct++});
+      if(validos.length>=2)tendencias.push({rec:s.rec,delta:validos[validos.length-1]-validos[0]});
+    });
+    const promedio=cntPct?Math.round(sumaPct/cntPct):null;
+    tendencias.sort((a,b)=>b.delta-a.delta);
+    const suba=tendencias.length?tendencias[0]:null;
+    const caida=tendencias.length?tendencias[tendencias.length-1]:null;
+    let ch=`<div class="ps-card"><div class="ps-card-label">Ocupación promedio</div><div class="ps-card-value">${promedio!=null?promedio+'%':'—'}</div><div class="ps-card-sub">mes en curso</div></div>`;
+    if(suba&&suba.delta>0)ch+=`<div class="ps-card"><div class="ps-card-label">Mayor suba</div><div class="ps-card-value" style="font-size:18px;color:#0F6E56">${esc(suba.rec)}</div><div class="ps-card-sub" style="color:#0F6E56">+${suba.delta} pts</div></div>`;
+    if(caida&&caida.delta<0)ch+=`<div class="ps-card"><div class="ps-card-label">Mayor caída</div><div class="ps-card-value" style="font-size:18px;color:#A32D2D">${esc(caida.rec)}</div><div class="ps-card-sub" style="color:#A32D2D">${caida.delta} pts</div></div>`;
+    cards.innerHTML=ch;
+
+    // ── Mini-gráficos (small multiples): una tarjeta por recorrido ──
+    if(!series.length){
+      grid.innerHTML='<div style="color:var(--ps-muted)">No hay recorridos con butacas cargadas en el mes. Cargá las butacas en la pestaña Por recorrido.</div>';
+      return;
+    }
+    // Destruir gráficos previos
+    if(window._miniCharts){window._miniCharts.forEach(c=>{try{c.destroy()}catch(_){}});}
+    window._miniCharts=[];
+
+    grid.innerHTML='';
+    series.forEach((s,i)=>{
+      const validos=s.data.filter(v=>v!=null);
+      const prom=validos.length?Math.round(validos.reduce((a,b)=>a+b,0)/validos.length):null;
+      const delta=validos.length>=2?validos[validos.length-1]-validos[0]:0;
+      const card=document.createElement('div');
+      card.style.cssText='background:#fff;border:1px solid var(--ps-border,#e2e8f0);border-radius:12px;padding:12px 14px';
+      card.innerHTML=
+        `<div style="font-size:13px;font-weight:700;color:var(--ps-header-bg);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.rec)}</div>`+
+        `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><span style="font-size:20px;font-weight:700">${prom!=null?prom+'%':'—'}</span>`+
+        `<span style="font-size:12px;color:${delta>=0?'#0F6E56':'#A32D2D'}">${delta>=0?'+':''}${delta} pts</span></div>`+
+        `<div style="position:relative;width:100%;height:130px"><canvas id="mini-${i}"></canvas></div>`;
+      grid.appendChild(card);
+    });
+    // Dibujar cada mini-gráfico
+    series.forEach((s,i)=>{
+      const ctx=document.getElementById('mini-'+i);
+      if(!ctx)return;
+      const c=new Chart(ctx,{
+        type:'line',
+        data:{labels,datasets:[{data:s.data,borderColor:s.color,backgroundColor:s.color,borderWidth:2,tension:.3,pointRadius:0,fill:false,spanGaps:true}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{callbacks:{title:it=>'Día '+it[0].label,label:it=>it.parsed.y+'%'}}},
+          scales:{
+            y:{min:0,max:110,ticks:{stepSize:25,callback:v=>v+'%',color:'#898781',font:{size:10}},grid:{color:'#e8e6df'}},
+            x:{ticks:{color:'#898781',font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}}
+          }}
+      });
+      window._miniCharts.push(c);
+    });
+  }catch(e){
+    if(cards)cards.innerHTML='<div style="color:var(--ps-red)">No se pudo cargar la evolución del mes. '+esc(e.message)+'</div>';
+  }
 }
 
 async function cargarHeatmapAnual(){
@@ -466,18 +492,19 @@ async function cargarHeatmapAnual(){
     const desde=anio+'-01-01', hasta=anio+'-12-31';
     const q=`select=fecha,recorrido,estado&fecha=gte.${desde}&fecha=lte.${hasta}&estado=eq.CONFIRMADO`;
     const filas=await sbFetch(q);
-    // Agrupar por recorrido (recView) y mes -> contar confirmados y días distintos
-    const porRecMes={}; // rec -> mes(0-11) -> {conf, dias:Set}
+    // Agrupar por recorrido (recView), mes y DÍA -> contar confirmados por día
+    const porRecMes={}; // rec -> mes(0-11) -> { dia(f) -> conf }
     const recsSet=new Set();
     filas.forEach(r=>{
+      if(excluirDeEvolucion(r.recorrido))return;
       const rv=recView(r.recorrido);
+      if(excluirDeEvolucion(rv))return;
       const f=String(r.fecha).slice(0,10);
       const mes=parseInt(f.slice(5,7),10)-1;
       recsSet.add(rv);
       porRecMes[rv]=porRecMes[rv]||{};
-      porRecMes[rv][mes]=porRecMes[rv][mes]||{conf:0,dias:new Set()};
-      porRecMes[rv][mes].conf++;
-      porRecMes[rv][mes].dias.add(f);
+      porRecMes[rv][mes]=porRecMes[rv][mes]||{};
+      porRecMes[rv][mes][f]=(porRecMes[rv][mes][f]||0)+1;
     });
     const recs=[...recsSet].sort(cmpRecAsc);
     // Meses presentes (hasta el mes actual)
@@ -497,9 +524,9 @@ async function cargarHeatmapAnual(){
         if(!cell||but==null||but<=0){
           h+=`<td style="text-align:center;color:var(--ps-muted)">—</td>`;
         }else{
-          // Ocupación promedio del mes = confirmados / (butacas * días con servicio)
-          const dias=cell.dias.size;
-          const pct=dias>0?Math.round(cell.conf/(but*dias)*100):null;
+          // Forma A: % de cada día (confirmados/butacas) redondeado, luego promedio
+          const pctDias=Object.values(cell).map(conf=>Math.round(conf/but*100));
+          const pct=pctDias.length?Math.round(pctDias.reduce((a,b)=>a+b,0)/pctDias.length):null;
           h+=`<td style="text-align:center;background:${ocupacionColor(pct)};color:${ocupacionTxt(pct)};font-weight:600">${pct!=null?pct+'%':'—'}</td>`;
         }
       });
