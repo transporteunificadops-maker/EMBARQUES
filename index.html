@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Embarques de Transporte — PETROSAR SA</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root{
   --ps-bg:#f0f2f6;--ps-header-bg:#1e2d3e;--ps-header-bg2:#192638;
@@ -152,6 +153,7 @@ body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);fon
   <div class="ps-tabs">
     <button class="ps-tab active" data-pane="resumen">📊 Por recorrido</button>
     <button class="ps-tab" data-pane="empresa">🏢 Por empresa</button>
+    <button class="ps-tab" data-pane="evolucion">📈 Evolución</button>
     <button class="ps-tab" data-pane="ausentes">⚠️ Ausentes</button>
     <button class="ps-tab" data-pane="detalle">📋 Detalle</button>
     <button class="ps-tab" data-pane="recorridos" id="tab-recorridos" style="display:none">🗺️ Recorridos</button>
@@ -160,6 +162,7 @@ body{font-family:var(--ps-font);background:var(--ps-bg);color:var(--ps-text);fon
   <div class="ps-content-card">
     <div class="ps-pane active" id="pane-resumen"></div>
     <div class="ps-pane" id="pane-empresa"></div>
+    <div class="ps-pane" id="pane-evolucion"></div>
     <div class="ps-pane" id="pane-ausentes"></div>
     <div class="ps-pane" id="pane-detalle"></div>
     <div class="ps-pane" id="pane-recorridos"></div>
@@ -324,13 +327,197 @@ function render(){
   renderKpis();
   renderResumen();
   renderEmpresa();
+  renderEvolucion();
   renderAusentes();
   renderDetalle();
 }
 
+// ════════════════════════════════════════════════════════
+// PESTAÑA EVOLUCIÓN — ocupación (confirmados / butacas)
+// Tarjetas resumen + gráfico de líneas (período) + mapa de calor (año)
+// ════════════════════════════════════════════════════════
+let _chartEvol=null;
+const MESES_AR=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const PALETA_EVOL=['#2a78d6','#1baf7a','#eda100','#008300','#4a3aa7','#e34948','#e87ba4','#eb6834'];
+
+function ocupacionColor(v){
+  if(v==null)return '#f7fafc';
+  if(v>=85)return '#1D9E75';
+  if(v>=75)return '#9FE1CB';
+  if(v>=65)return '#EAF3DE';
+  if(v>=55)return '#FAEEDA';
+  return '#FCEBEB';
+}
+function ocupacionTxt(v){return v!=null&&v>=85?'#04342C':'#412402'}
+
+function renderEvolucion(){
+  const pane=document.getElementById('pane-evolucion');
+  // Agrupar DATA (período de los filtros) por fecha y recorrido (aplicando agrupación de alimentadores)
+  // Ocupación diaria por recorrido = confirmados / butacas del recorrido
+  const porFechaRec={}; // fecha -> recView -> {conf}
+  const fechasSet=new Set();
+  const recsSet=new Set();
+  DATA.forEach(r=>{
+    const rv=recView(r.recorrido);
+    const f=String(r.fecha).slice(0,10);
+    fechasSet.add(f);recsSet.add(rv);
+    porFechaRec[f]=porFechaRec[f]||{};
+    porFechaRec[f][rv]=porFechaRec[f][rv]||{conf:0};
+    if(r.estado==='CONFIRMADO')porFechaRec[f][rv].conf++;
+  });
+  const fechas=[...fechasSet].sort();
+  const recs=[...recsSet].sort(cmpRecAsc);
+
+  if(!fechas.length){
+    pane.innerHTML=emptyState('📈','No hay datos para el período seleccionado.');
+    return;
+  }
+
+  // ── Series para el gráfico de líneas: % ocupación por recorrido a lo largo de las fechas ──
+  const series=recs.map((rec,i)=>{
+    const but=butacasDe(rec);
+    const data=fechas.map(f=>{
+      const cell=porFechaRec[f]&&porFechaRec[f][rec];
+      if(!cell||but==null||but<=0)return null;
+      return Math.round(cell.conf/but*100);
+    });
+    return {rec,data,color:PALETA_EVOL[i%PALETA_EVOL.length],but};
+  }).filter(s=>s.but!=null&&s.but>0); // solo recorridos con butacas cargadas
+
+  // ── Tarjetas: promedio del período, mayor suba, mayor caída ──
+  let sumaPct=0,cntPct=0;
+  const tendencias=[]; // {rec, delta}
+  series.forEach(s=>{
+    const validos=s.data.filter(v=>v!=null);
+    validos.forEach(v=>{sumaPct+=v;cntPct++});
+    if(validos.length>=2){
+      tendencias.push({rec:s.rec,delta:validos[validos.length-1]-validos[0]});
+    }
+  });
+  const promedio=cntPct?Math.round(sumaPct/cntPct):null;
+  tendencias.sort((a,b)=>b.delta-a.delta);
+  const suba=tendencias.length?tendencias[0]:null;
+  const caida=tendencias.length?tendencias[tendencias.length-1]:null;
+
+  let h='';
+  // Tarjetas
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px">';
+  h+=`<div class="ps-card"><div class="ps-card-label">Ocupación promedio</div><div class="ps-card-value">${promedio!=null?promedio+'%':'—'}</div><div class="ps-card-sub">del período</div></div>`;
+  if(suba&&suba.delta>0){
+    h+=`<div class="ps-card"><div class="ps-card-label">Mayor suba</div><div class="ps-card-value" style="font-size:18px;color:#0F6E56">${esc(suba.rec)}</div><div class="ps-card-sub" style="color:#0F6E56">+${suba.delta} pts</div></div>`;
+  }
+  if(caida&&caida.delta<0){
+    h+=`<div class="ps-card"><div class="ps-card-label">Mayor caída</div><div class="ps-card-value" style="font-size:18px;color:#A32D2D">${esc(caida.rec)}</div><div class="ps-card-sub" style="color:#A32D2D">${caida.delta} pts</div></div>`;
+  }
+  h+='</div>';
+
+  // Gráfico de líneas
+  if(series.length){
+    h+='<div style="font-weight:600;color:var(--ps-header-bg);margin-bottom:8px">Evolución en el período (día a día)</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-size:12px;color:var(--ps-muted)">';
+    series.forEach(s=>{h+=`<span style="display:flex;align-items:center;gap:5px"><span style="width:11px;height:11px;border-radius:2px;background:${s.color}"></span>${esc(s.rec)}</span>`;});
+    h+='</div>';
+    h+='<div style="position:relative;width:100%;height:300px;margin-bottom:28px"><canvas id="canvas-evol" role="img" aria-label="Evolución de ocupación por recorrido"></canvas></div>';
+  }else{
+    h+='<div style="color:var(--ps-muted);margin-bottom:24px">No hay recorridos con butacas cargadas en el período. Cargá las butacas en la pestaña Por recorrido para ver la evolución.</div>';
+  }
+
+  // Placeholder del mapa de calor anual (se llena async)
+  h+='<div style="font-weight:600;color:var(--ps-header-bg);margin-bottom:8px">Evolución en el año (mes a mes)</div>';
+  h+='<div id="heatmap-anual"><div class="ps-loader"></div></div>';
+
+  pane.innerHTML=h;
+
+  // Dibujar el gráfico de líneas
+  if(series.length){
+    if(_chartEvol){_chartEvol.destroy();_chartEvol=null}
+    const ctx=document.getElementById('canvas-evol');
+    if(ctx){
+      _chartEvol=new Chart(ctx,{
+        type:'line',
+        data:{
+          labels:fechas.map(f=>{const p=f.split('-');return p[2]+'/'+p[1]}),
+          datasets:series.map(s=>({
+            label:s.rec,data:s.data,borderColor:s.color,backgroundColor:s.color,
+            borderWidth:2,tension:.3,pointRadius:2,spanGaps:true
+          }))
+        },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{
+            y:{min:0,max:110,ticks:{callback:v=>v+'%',color:'#898781'},grid:{color:'#e1e0d9'}},
+            x:{ticks:{color:'#898781',maxRotation:45,autoSkip:true},grid:{display:false}}
+          }
+        }
+      });
+    }
+  }
+
+  // Cargar el mapa de calor anual (consulta aparte, todo el año)
+  cargarHeatmapAnual();
+}
+
+async function cargarHeatmapAnual(){
+  const cont=document.getElementById('heatmap-anual');
+  if(!cont)return;
+  try{
+    const anio=new Date().getFullYear();
+    // Traer confirmados de todo el año (solo columnas necesarias, paginado por sbFetch)
+    const desde=anio+'-01-01', hasta=anio+'-12-31';
+    const q=`select=fecha,recorrido,estado&fecha=gte.${desde}&fecha=lte.${hasta}&estado=eq.CONFIRMADO`;
+    const filas=await sbFetch(q);
+    // Agrupar por recorrido (recView) y mes -> contar confirmados y días distintos
+    const porRecMes={}; // rec -> mes(0-11) -> {conf, dias:Set}
+    const recsSet=new Set();
+    filas.forEach(r=>{
+      const rv=recView(r.recorrido);
+      const f=String(r.fecha).slice(0,10);
+      const mes=parseInt(f.slice(5,7),10)-1;
+      recsSet.add(rv);
+      porRecMes[rv]=porRecMes[rv]||{};
+      porRecMes[rv][mes]=porRecMes[rv][mes]||{conf:0,dias:new Set()};
+      porRecMes[rv][mes].conf++;
+      porRecMes[rv][mes].dias.add(f);
+    });
+    const recs=[...recsSet].sort(cmpRecAsc);
+    // Meses presentes (hasta el mes actual)
+    const mesActual=new Date().getMonth();
+    const meses=[];for(let m=0;m<=mesActual;m++)meses.push(m);
+
+    if(!recs.length){cont.innerHTML='<div style="color:var(--ps-muted)">No hay datos del año para mostrar.</div>';return}
+
+    let h='<div class="ps-table-wrap"><table class="ps-table"><thead><tr><th>Recorrido</th>';
+    meses.forEach(m=>{h+=`<th style="text-align:center">${MESES_AR[m]}</th>`});
+    h+='</tr></thead><tbody>';
+    recs.forEach(rec=>{
+      const but=butacasDe(rec);
+      h+=`<tr><td><b>${esc(rec)}</b></td>`;
+      meses.forEach(m=>{
+        const cell=porRecMes[rec]&&porRecMes[rec][m];
+        if(!cell||but==null||but<=0){
+          h+=`<td style="text-align:center;color:var(--ps-muted)">—</td>`;
+        }else{
+          // Ocupación promedio del mes = confirmados / (butacas * días con servicio)
+          const dias=cell.dias.size;
+          const pct=dias>0?Math.round(cell.conf/(but*dias)*100):null;
+          h+=`<td style="text-align:center;background:${ocupacionColor(pct)};color:${ocupacionTxt(pct)};font-weight:600">${pct!=null?pct+'%':'—'}</td>`;
+        }
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table></div>';
+    // Leyenda
+    h+='<div style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ps-muted)"><span>Menor</span>';
+    ['#FCEBEB','#FAEEDA','#EAF3DE','#9FE1CB','#1D9E75'].forEach(c=>{h+=`<span style="display:inline-block;width:22px;height:12px;background:${c}"></span>`});
+    h+='<span>Mayor ocupación</span></div>';
+    cont.innerHTML=h;
+  }catch(e){
+    cont.innerHTML='<div style="color:var(--ps-red)">No se pudo cargar la evolución anual. '+esc(e.message)+'</div>';
+  }
+}
+
 function renderKpis(){
-  const tot=DATA.length;
-  const conf=DATA.filter(r=>r.estado==='CONFIRMADO').length;
+  const tot=DATA.length;  const conf=DATA.filter(r=>r.estado==='CONFIRMADO').length;
   const aus=tot-conf;
   const pct=tot?Math.round(conf/tot*100):0;
   const recs=new Set(DATA.map(r=>recView(r.recorrido))).size;
