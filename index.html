@@ -362,6 +362,17 @@ function ocupacionColor(v){
 }
 function ocupacionTxt(v){return v!=null&&v>=85?'#04342C':'#412402'}
 
+// ── CÁLCULO ÚNICO de ocupación (Forma A: promedio de los % diarios) ──
+// confPorDia: objeto { 'YYYY-MM-DD': cantidadConfirmados }  |  but: butacas del recorrido
+// Devuelve { pct, dias } o {pct:null,dias:0} si no se puede calcular.
+function calcOcupacion(confPorDia, but){
+  if(!confPorDia || but==null || but<=0) return {pct:null,dias:0};
+  const pctDias=Object.values(confPorDia).map(conf=>Math.round(conf/but*100));
+  if(!pctDias.length) return {pct:null,dias:0};
+  const pct=Math.round(pctDias.reduce((a,b)=>a+b,0)/pctDias.length);
+  return {pct,dias:pctDias.length};
+}
+
 function renderEvolucion(){
   const pane=document.getElementById('pane-evolucion');
   // Estructura fija: tarjetas + gráfico de mes + heatmap anual. Los datos se cargan async
@@ -390,6 +401,7 @@ async function cargarGraficoMes(){
 
     // Agrupar por fecha y recorrido (aplicando agrupación de alimentadores, excluyendo unificados y 21)
     const porFechaRec={},recsSet=new Set();
+    const confPorRecDia={}; // rec -> { fecha -> confirmados }  (misma estructura que el heatmap)
     filas.forEach(r=>{
       if(excluirDeEvolucion(r.recorrido))return;
       const rv=recView(r.recorrido);
@@ -399,6 +411,8 @@ async function cargarGraficoMes(){
       porFechaRec[f]=porFechaRec[f]||{};
       porFechaRec[f][rv]=porFechaRec[f][rv]||{conf:0};
       porFechaRec[f][rv].conf++;
+      confPorRecDia[rv]=confPorRecDia[rv]||{};
+      confPorRecDia[rv][f]=(confPorRecDia[rv][f]||0)+1;
     });
     const recs=[...recsSet].sort(cmpRecAsc);
 
@@ -423,11 +437,12 @@ async function cargarGraficoMes(){
       return {rec,data,color:PALETA_EVOL[i%PALETA_EVOL.length],but};
     }).filter(s=>s.but!=null&&s.but>0);
 
-    // ── Tarjetas resumen ──
+    // ── Tarjetas resumen (usan calcOcupacion, igual que el heatmap) ──
     let sumaPct=0,cntPct=0;const tendencias=[];
     series.forEach(s=>{
+      const {pct}=calcOcupacion(confPorRecDia[s.rec],s.but);
+      if(pct!=null){sumaPct+=pct;cntPct++}
       const validos=s.data.filter(v=>v!=null);
-      validos.forEach(v=>{sumaPct+=v;cntPct++});
       if(validos.length>=2)tendencias.push({rec:s.rec,delta:validos[validos.length-1]-validos[0]});
     });
     const promedio=cntPct?Math.round(sumaPct/cntPct):null;
@@ -450,8 +465,8 @@ async function cargarGraficoMes(){
 
     grid.innerHTML='';
     series.forEach((s,i)=>{
+      const {pct:prom}=calcOcupacion(confPorRecDia[s.rec],s.but);
       const validos=s.data.filter(v=>v!=null);
-      const prom=validos.length?Math.round(validos.reduce((a,b)=>a+b,0)/validos.length):null;
       const delta=validos.length>=2?validos[validos.length-1]-validos[0]:0;
       const card=document.createElement('div');
       card.style.cssText='background:#fff;border:1px solid var(--ps-border,#e2e8f0);border-radius:12px;padding:12px 14px';
@@ -521,13 +536,11 @@ async function cargarHeatmapAnual(){
       h+=`<tr><td><b>${esc(rec)}</b></td>`;
       meses.forEach(m=>{
         const cell=porRecMes[rec]&&porRecMes[rec][m];
-        if(!cell||but==null||but<=0){
+        const {pct}=calcOcupacion(cell,but);
+        if(pct==null){
           h+=`<td style="text-align:center;color:var(--ps-muted)">—</td>`;
         }else{
-          // Forma A: % de cada día (confirmados/butacas) redondeado, luego promedio
-          const pctDias=Object.values(cell).map(conf=>Math.round(conf/but*100));
-          const pct=pctDias.length?Math.round(pctDias.reduce((a,b)=>a+b,0)/pctDias.length):null;
-          h+=`<td style="text-align:center;background:${ocupacionColor(pct)};color:${ocupacionTxt(pct)};font-weight:600">${pct!=null?pct+'%':'—'}</td>`;
+          h+=`<td style="text-align:center;background:${ocupacionColor(pct)};color:${ocupacionTxt(pct)};font-weight:600">${pct}%</td>`;
         }
       });
       h+='</tr>';
