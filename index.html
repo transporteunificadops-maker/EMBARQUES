@@ -208,6 +208,22 @@ function cmpRecAsc(a,b){
   return String(a).localeCompare(String(b));
 }
 
+// Número de parada para ordenar ("Parada 10" -> 10). Sin número, va al final.
+function paradaNum(p){
+  const m=String(p||'').match(/(\d+)/);
+  return m?parseInt(m[1],10):9999;
+}
+// Orden del Detalle: fecha (desc), luego recorrido, luego parada numérica
+function cmpDetalle(a,b){
+  const fa=String(a.fecha||''),fb=String(b.fecha||'');
+  if(fa!==fb)return fb.localeCompare(fa); // más reciente primero
+  const cr=cmpRecAsc(a.recorrido,b.recorrido);
+  if(cr!==0)return cr;
+  const pa=paradaNum(a.parada),pb=paradaNum(b.parada);
+  if(pa!==pb)return pa-pb;
+  return String(a.nombre_pasajero||'').localeCompare(String(b.nombre_pasajero||''),'es');
+}
+
 // Mapa nombreRecorrido->butacas (cada recorrido es independiente, por nombre completo).
 let BUTACAS={};
 async function loadButacas(){
@@ -684,8 +700,8 @@ function renderDetalle(){
   const opts=['<option value="">Todos los internos</option>']
     .concat(internos.map(i=>`<option value="${esc(i)}"${FILTRO_INTERNO===i?' selected':''}>Interno ${esc(i)}</option>`))
     .join('');
-  // Datos filtrados por interno (solo afecta esta tabla)
-  const filas=FILTRO_INTERNO?DATA.filter(r=>String(r.interno||'')===FILTRO_INTERNO):DATA;
+  // Datos filtrados por interno (solo afecta esta tabla), ordenados por fecha > recorrido > parada
+  const filas=(FILTRO_INTERNO?DATA.filter(r=>String(r.interno||'')===FILTRO_INTERNO):DATA).slice().sort(cmpDetalle);
 
   const accCol=ADMIN?'<th>Acción</th>':'';
   let h=`<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
