@@ -302,11 +302,6 @@ async function sbFetch(query){
 async function loadData(){
   msg('<div class="ps-loader"></div>');
   try{
-    // Si no hay registros aún en RAW, traer solo recorrido+empresa (liviano) para poblar selects
-    if(!RAW.length){
-      RAW=await sbFetch('select=recorrido,empresa&order=fecha.desc');
-      populateSelects();
-    }
     await loadButacas();
     // Construir filtro server-side (Supabase filtra; sbFetch pagina hasta traer todo)
     const params=['select=*','order=fecha.desc,recorrido.asc,parada.asc'];
@@ -321,6 +316,7 @@ async function loadData(){
     if(emp)params.push('empresa=eq.'+encodeURIComponent(emp));
     if(est)params.push('estado=eq.'+encodeURIComponent(est));
     DATA_ALL=await sbFetch(params.join('&'));
+    populateSelects();
     msg('');
     render();
   }catch(e){
@@ -330,12 +326,22 @@ async function loadData(){
 }
 
 function populateSelects(){
-  const recs=[...new Set(RAW.map(r=>r.recorrido).filter(Boolean))].sort(cmpRecAsc);
-  const emps=[...new Set(RAW.map(r=>r.empresa).filter(Boolean))].sort();
+  // Recorridos: de la tabla butacas_recorrido (chica) + los que aparezcan en los datos cargados.
+  // Empresas: de los datos cargados. Así NO se trae toda la historia (eso hacía lento el inicio).
   const sr=document.getElementById('f-recorrido');
   const se=document.getElementById('f-empresa');
-  recs.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sr.appendChild(o)});
-  emps.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;se.appendChild(o)});
+  const recSel=sr.value, empSel=se.value; // conservar selección actual
+
+  const recSet=new Set(Object.keys(BUTACAS||{}));
+  (DATA_ALL||[]).forEach(r=>{if(r.recorrido)recSet.add(r.recorrido)});
+  const recs=[...recSet].filter(Boolean).sort(cmpRecAsc);
+
+  const emps=[...new Set((DATA_ALL||[]).map(r=>r.empresa).filter(Boolean))].sort();
+
+  sr.innerHTML='<option value="">Todos</option>';
+  recs.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;if(v===recSel)o.selected=true;sr.appendChild(o)});
+  se.innerHTML='<option value="">Todas</option>';
+  emps.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;if(v===empSel)o.selected=true;se.appendChild(o)});
 }
 
 function render(){
@@ -979,6 +985,12 @@ function exportXlsx(){
 
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function fmtFecha(f){if(!f)return '';const p=String(f).slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:f}
+
+// Filtros automáticos: al cambiar cualquiera, recarga sola (sin tocar "Actualizar").
+['f-desde','f-hasta','f-recorrido','f-empresa','f-estado'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el)el.addEventListener('change',()=>loadData());
+});
 
 // Carga inicial — por defecto muestra el día de hoy
 (function(){
