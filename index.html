@@ -252,8 +252,13 @@ function esPrincipalNombre(nombre){
 function toggleAgrupar(){
   AGRUPAR=!AGRUPAR;
   document.getElementById('btn-agrupar').textContent='🔗 Agrupar alimentadores: '+(AGRUPAR?'ON':'OFF');
-  _evolCargada=false; // la evolución depende de la agrupación, recargar
+  _evolCargada=false; // la evolución depende de la agrupación
   render();
+  // Si el usuario está viendo Evolución justo ahora, recargarla con el nuevo criterio
+  if(document.getElementById('pane-evolucion').classList.contains('active')){
+    _evolCargada=true;
+    renderEvolucion();
+  }
 }
 
 // ── Tabs ──
@@ -263,6 +268,11 @@ document.querySelectorAll('.ps-tab').forEach(t=>{
     document.querySelectorAll('.ps-pane').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('pane-'+t.dataset.pane).classList.add('active');
+    // La pestaña Evolución carga sus datos (pesados) recién al entrar la primera vez.
+    if(t.dataset.pane==='evolucion' && !_evolCargada){
+      _evolCargada=true;
+      renderEvolucion();
+    }
   };
 });
 
@@ -346,8 +356,12 @@ function render(){
   renderEmpresa();
   renderAusentes();
   renderDetalle();
-  // La pestaña Evolución se carga sola al construirse (no depende del filtro).
-  if(!_evolCargada){renderEvolucion();_evolCargada=true;}
+  // La pestaña Evolución NO se carga al abrir (es pesada: consulta todo el año).
+  // Se carga recién cuando el usuario entra a esa pestaña (ver listener de tabs).
+  // Si ya estaba cargada y sigue abierta, se refresca.
+  if(_evolCargada && document.getElementById('pane-evolucion').classList.contains('active')){
+    renderEvolucion();
+  }
 }
 let _evolCargada=false;
 
